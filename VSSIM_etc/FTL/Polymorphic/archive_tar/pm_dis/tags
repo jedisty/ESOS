@@ -1,0 +1,250 @@
+!_TAG_FILE_FORMAT	2	/extended format; --format=1 will not append ;" to lines/
+!_TAG_FILE_SORTED	1	/0=unsorted, 1=sorted, 2=foldcase/
+!_TAG_PROGRAM_AUTHOR	Darren Hiebert	/dhiebert@users.sourceforge.net/
+!_TAG_PROGRAM_NAME	Exuberant Ctags	//
+!_TAG_PROGRAM_URL	http://ctags.sourceforge.net	/official site/
+!_TAG_PROGRAM_VERSION	5.9~svn20110310	//
+ASSERT	common.h	44;"	d
+BIT_GET	ftl.h	11;"	d
+BIT_SET	ftl.h	10;"	d
+BLOCKS_PER_BANK	common.h	18;"	d
+CACHE_IDX_SIZE	cache.h	12;"	d
+CACHE_MAP_SIZE	cache.h	11;"	d
+CMD_ERASE	common.h	68;"	d
+CMD_READ	common.h	66;"	d
+CMD_WRITE	common.h	67;"	d
+DEBUG_ERR	common.h	54;"	d
+DEBUG_FLASH	common.h	62;"	d
+DEBUG_FLASH_V	common.h	63;"	d
+DEBUG_FTL_RW	common.h	59;"	d
+DEBUG_FTL_RW_V	common.h	60;"	d
+DEBUG_INFO	common.h	56;"	d
+DEBUG_KREQUEST	common.h	58;"	d
+DEBUG_QUEUE	common.h	61;"	d
+DEBUG_WARN	common.h	55;"	d
+ERASE_LATENCY	common.h	25;"	d
+EXTENTS_MAP	cache.h	15;"	d
+EXTRA_CFLAGS	Makefile	/^EXTRA_CFLAGS := -g$/;"	m
+GET_BLK_OFFSET	ftl.h	19;"	d
+GET_BLK_PAGENUM	ftl.h	18;"	d
+GET_CACHE_NUM	cache.h	19;"	d
+GET_DIVIDED_REGION	ftl.h	25;"	d
+GET_FREE_BLK	ftl.h	17;"	d
+GET_PAGE_NUM_PER_REGION	pm.h	19;"	d
+GET_PAGE_NUM_PER_ROOT	pm.h	20;"	d
+GET_REGION_IDX	pm.h	11;"	d
+GET_REGION_NUM	pm.h	16;"	d
+GET_ROOT_NUM	pm.h	17;"	d
+GET_ROOT_NUM_PER_REGION	pm.h	18;"	d
+INDEX_NODE_SIZE	pm.h	23;"	d
+IS_SAME_REGION	ftl.h	22;"	d
+KDIR	Makefile	/^KDIR := \/lib\/modules\/$(shell uname -r)\/build$/;"	m
+LEAF_MID_POS	pm.h	25;"	d
+LEAF_NODE_SIZE	pm.h	24;"	d
+MAP_ENTRIES_PER_PAGE	common.h	39;"	d
+MAX_EVENTS	common.h	13;"	d
+NR_PHY_BANKS	common.h	16;"	d
+NR_PHY_BLOCKS	common.h	30;"	d
+NR_PHY_PAGES	common.h	31;"	d
+NR_PHY_SECTORS	common.h	32;"	d
+NR_PHY_WAYS	common.h	17;"	d
+NR_RESERVED_PHY_BLOCKS	common.h	35;"	d
+NR_RESERVED_PHY_BLOCK_SIZE	common.h	34;"	d
+NR_RESERVED_PHY_PAGES	common.h	36;"	d
+NUM_PAGE_PER_REGION	pm.h	27;"	d
+NUM_PAGE_PER_ROOT	pm.h	28;"	d
+PAGES_PER_BLOCK	common.h	19;"	d
+PAGE_MAP	cache.h	16;"	d
+PHY_PAGE_SIZE	common.h	20;"	d
+PHY_SPARE_SIZE	common.h	21;"	d
+POLYMORPHIC_MAPPING_H	pm.h	2;"	d
+PRINT_LINE	common.h	42;"	d
+PWD	Makefile	/^PWD := $(shell pwd)$/;"	m
+READ_LATENCY	common.h	23;"	d
+REGION_ENTRIES_PER_PAGE	pm.h	13;"	d
+REGION_IDX_SIZE	pm.h	12;"	d
+REGION_NODE_SIZE	pm.h	21;"	d
+RE_INSERT_POS	pm.h	31;"	d
+ROOT_NODE_SIZE	pm.h	22;"	d
+SECTORS_PER_PAGE	common.h	28;"	d
+SET_FREE_BLK	ftl.h	16;"	d
+WRITE_LATENCY	common.h	24;"	d
+_CACHE_H	cache.h	2;"	d
+__COMMON_H	common.h	2;"	d
+__FLASH_H	flash.h	2;"	d
+__FTL_H	ftl.h	2;"	d
+__HOST_H	host.h	2;"	d
+__KERNEL_H	kernel.h	2;"	d
+__this_module	mlc.mod.c	/^struct module __this_module$/;"	v	typeref:struct:module
+__used	mlc.mod.c	/^__used$/;"	v	file:
+__used	mlc.mod.c	/^__used$/;"	v	typeref:struct:____versions	file:
+avoid_clock_selection	cache.c	/^uint32_t avoid_clock_selection(extents_node *e_node)$/;"	f
+bank_cmd	flash.h	/^struct bank_cmd {$/;"	s
+bank_cmd	flash_dram.c	/^struct bank_cmd bank_cmd[NR_PHY_BANKS * NR_PHY_WAYS];$/;"	v	typeref:struct:bank_cmd
+bank_hw	flash.h	/^struct bank_hw {$/;"	s
+bank_hw	flash_dram.c	/^struct bank_hw bank_hw[NR_PHY_BANKS * NR_PHY_WAYS];$/;"	v	typeref:struct:bank_hw
+blk_fs_request	common.h	52;"	d
+block	flash.h	/^	uint32_t block;$/;"	m	struct:bank_cmd
+block_ptr	ftl.h	/^	uint32_t block_ptr;				\/\/ recently allocated block$/;"	m	struct:ftl_metadata_
+buf	flash.h	/^	void * buf;$/;"	m	struct:bank_cmd
+buf	host.h	/^	void * buf;$/;"	m	struct:host_command
+cache_idx_entry	cache.h	/^} cache_idx_entry;$/;"	t	typeref:struct:cache_idx_entry_
+cache_idx_entry_	cache.h	/^typedef struct cache_idx_entry_ {$/;"	s
+cache_idx_table	cache.c	/^cache_idx_entry *cache_idx_table;	\/\/ Cache info$/;"	v
+cache_init	cache.c	/^uint32_t cache_init(void *mem)$/;"	f
+cache_map	cache.c	/^uint32_t *cache_map;				\/\/ cache table$/;"	v
+cache_wp	cache.c	/^uint32_t cache_wp;					\/\/ cache write pointer$/;"	v
+change_pagemap	pm.c	/^uint32_t change_pagemap(uint32_t r_num, extents_node *e_node, leaf_node *i_node, void *callback)$/;"	f
+clock_bit	cache.h	/^	uint32_t clock_bit	: 1;	\/\/ clock reference bit$/;"	m	struct:cache_idx_entry_
+clock_hand	cache.c	/^static uint32_t clock_hand;			\/\/ clock$/;"	v	file:
+cmd_dec_remain	host.c	/^void cmd_dec_remain(host_command_t * cmd, uint32_t error)$/;"	f
+cmd_set_remain	host.c	/^void cmd_set_remain(host_command_t * cmd, int remain)$/;"	f
+commit_event	host.c	/^void commit_event(struct event_queue * queue, host_command_t * cmd)$/;"	f
+copy_node	pm.c	/^void copy_node(leaf_node *src_i_node, leaf_node *dest_i_node, uint32_t l_num)$/;"	f
+divide_leaf_node	pm.c	/^leaf_node *divide_leaf_node(uint32_t r_num, uint32_t i_num, uint32_t l_num, extents_node *e_node, void *callback)$/;"	f
+end_event	host.c	/^void end_event(host_command_t * cmd, int error)$/;"	f
+end_queue	host.c	/^struct event_queue end_queue;$/;"	v	typeref:struct:event_queue
+error	host.h	/^	uint32_t error;$/;"	m	struct:host_command
+event_queue	host.c	/^struct event_queue event_queue;$/;"	v	typeref:struct:event_queue
+event_queue	host.h	/^struct event_queue {$/;"	s
+evict_cache_line	cache.c	/^uint32_t evict_cache_line(void *callback)$/;"	f
+extents_node	pm.h	/^} extents_node;																$/;"	t	typeref:struct:extents_node_
+extents_node_	pm.h	/^typedef struct extents_node_ {$/;"	s
+extents_ppn	pm.h	/^	uint32_t extents_ppn;		\/\/ physical page number$/;"	m	struct:region_node_
+flash_close	flash_dram.c	/^void flash_close(void)$/;"	f
+flash_erase	flash_dram.c	/^int flash_erase(uint32_t bank, uint32_t block)$/;"	f
+flash_isr	flash_dram.c	/^enum hrtimer_restart flash_isr(struct hrtimer * ptr)$/;"	f
+flash_open	flash_dram.c	/^int flash_open(void)$/;"	f
+flash_partial_write	flash_dram.c	/^int flash_partial_write(void * callback, uint32_t bank, uint32_t block, uint32_t page,$/;"	f
+flash_read	flash_dram.c	/^int flash_read(void * callback, uint32_t bank, uint32_t block, uint32_t page,$/;"	f
+flash_write	flash_dram.c	/^int flash_write(void * callback, uint32_t bank, uint32_t block, uint32_t page, void * buf)$/;"	f
+free_blk_bitmap	ftl.c	/^uint32_t *free_blk_bitmap;				\/\/ free block bitmap$/;"	v
+ftl_calc_bank	ftl.c	/^uint32_t ftl_calc_bank(uint32_t ppn)$/;"	f
+ftl_calc_block	ftl.c	/^uint32_t ftl_calc_block(uint32_t ppn)$/;"	f
+ftl_calc_page	ftl.c	/^uint32_t ftl_calc_page(uint32_t ppn)$/;"	f
+ftl_close	ftl.c	/^void ftl_close(void)$/;"	f
+ftl_init	ftl.c	/^int ftl_init(void *mem)$/;"	f
+ftl_metadata	ftl.c	/^struct ftl_metadata_ *ftl_metadata;		\/\/ write pointer 구조체$/;"	v	typeref:struct:ftl_metadata_
+ftl_metadata_	ftl.h	/^struct ftl_metadata_ {$/;"	s
+ftl_open	ftl.c	/^int ftl_open(void)$/;"	f
+ftl_read	ftl.c	/^int ftl_read(uint32_t lba, uint32_t sectors, void * buf, void* callback)$/;"	f
+ftl_read_map	ftl.c	/^void ftl_read_map(uint32_t ppn, void *cache)$/;"	f
+ftl_write	ftl.c	/^int ftl_write(uint32_t lba, uint32_t sectors, void * buf, void* callback)$/;"	f
+ftl_write_map	ftl.c	/^void ftl_write_map(uint32_t new_ppn, void *buf, void *callback)$/;"	f
+gd	kernel.c	/^	struct gendisk * gd;$/;"	m	struct:kernel_device	typeref:struct:kernel_device::gendisk	file:
+get_event	host.c	/^host_command_t * get_event(struct event_queue * queue)$/;"	f
+get_flash_page	flash_dram.c	/^void *get_flash_page(uint32_t ppn)$/;"	f
+get_free_blk_bitmap	ftl.c	/^uint32_t get_free_blk_bitmap(uint32_t blk_num)$/;"	f
+get_free_block	ftl.c	/^static uint32_t get_free_block(void)$/;"	f	file:
+get_free_block_in_reserved	ftl.c	/^static uint32_t get_free_block_in_reserved(void)$/;"	f	file:
+get_free_event	host.c	/^host_command_t * get_free_event(void)$/;"	f
+get_free_map_page	ftl.c	/^uint32_t get_free_map_page(void)$/;"	f
+get_free_page	ftl.c	/^uint32_t get_free_page(void)$/;"	f
+get_free_page_in_reserved	ftl.c	/^uint32_t get_free_page_in_reserved(void)$/;"	f
+get_leaf	pm.c	/^leaf_node *get_leaf(uint32_t rg_num, uint32_t *r_offset, uint32_t *i_offset, uint32_t *l_offset)$/;"	f
+get_physical_address	cache.c	/^void *get_physical_address(uint32_t lpn, uint32_t *r_offset, uint32_t *i_offset, uint32_t *l_offset, void *callback)$/;"	f
+get_region_idx_ppn	pm.c	/^uint32_t get_region_idx_ppn(uint32_t num)$/;"	f
+head	host.h	/^	struct list_head head;$/;"	m	struct:event_queue	typeref:struct:event_queue::list_head
+host_cmd	flash.h	/^	struct host_command * host_cmd;$/;"	m	struct:bank_cmd	typeref:struct:bank_cmd::host_command
+host_command	host.h	/^typedef struct host_command {$/;"	s
+host_command_t	host.h	/^} host_command_t;$/;"	t	typeref:struct:host_command
+host_loop	host.c	/^int host_loop(void * unused)$/;"	f
+host_thread	kernel.c	/^struct task_struct * host_thread;$/;"	v	typeref:struct:task_struct
+hrtimer	flash.h	/^	struct hrtimer hrtimer;$/;"	m	struct:bank_hw	typeref:struct:bank_hw::hrtimer
+i_node	pm.h	/^	leaf_node i_node[ROOT_NODE_SIZE * INDEX_NODE_SIZE];$/;"	m	struct:extents_node_
+index_node	pm.h	/^	struct leaf_node_ *index_node;$/;"	m	union:root_node_	typeref:struct:root_node_::leaf_node_
+init_extents_table	pm.c	/^void init_extents_table(extents_node *e_node)$/;"	f
+init_extents_table_link	pm.c	/^void init_extents_table_link(extents_node *e_node)$/;"	f
+init_leaf_node	pm.c	/^void init_leaf_node(leaf_node *l_node)$/;"	f
+init_pagemap	cache.c	/^pm_entry *init_pagemap(uint32_t r_num, extents_node *e_node, void*callback)$/;"	f
+insert_leaf_node	pm.c	/^void insert_leaf_node(uint32_t lpn_ori, uint32_t size, uint32_t new_ppn, extents_node *e_node, void *callback)$/;"	f
+is_event	host.c	/^int is_event(struct event_queue * queue)$/;"	f
+kernel_dev_major	kernel.c	/^static int kernel_dev_major;$/;"	v	file:
+kernel_device	kernel.c	/^static struct kernel_device {$/;"	s	file:
+kernel_device	kernel.c	/^} kernel_device;$/;"	v	typeref:struct:kernel_device	file:
+kernel_device_exit	kernel.c	/^static void kernel_device_exit(void)$/;"	f	file:
+kernel_device_init	kernel.c	/^static int kernel_device_init(void)$/;"	f	file:
+kernel_end_event	kernel.c	/^int kernel_end_event(host_command_t * cmd, int error)$/;"	f
+kernel_exit	kernel.c	/^module_exit(kernel_exit);$/;"	v
+kernel_exit	kernel.c	/^static void __exit kernel_exit(void)$/;"	f	file:
+kernel_fops	kernel.c	/^static struct block_device_operations kernel_fops = {$/;"	v	typeref:struct:block_device_operations	file:
+kernel_getgeo	kernel.c	/^static int kernel_getgeo(struct block_device * block_device,$/;"	f	file:
+kernel_init	kernel.c	/^module_init(kernel_init);$/;"	v
+kernel_init	kernel.c	/^static int __init kernel_init(void)$/;"	f	file:
+kernel_prep_read	kernel.c	/^int kernel_prep_read(host_command_t * cmd)$/;"	f
+kernel_prep_write	kernel.c	/^int kernel_prep_write(host_command_t * cmd)$/;"	f
+kernel_proc_entry	kernel.c	/^static struct proc_dir_entry * kernel_proc_entry;$/;"	v	typeref:struct:proc_dir_entry	file:
+kernel_proc_read	kernel.c	/^static int kernel_proc_read(char * page, char ** start, off_t off,$/;"	f	file:
+kernel_proc_write	kernel.c	/^static int kernel_proc_write(struct file * filp, const char __user * buff,$/;"	f	file:
+kernel_queue	kernel.c	/^static struct request_queue * kernel_queue;$/;"	v	typeref:struct:request_queue	file:
+kernel_queue_lock	kernel.c	/^static spinlock_t kernel_queue_lock;$/;"	v	file:
+kernel_request	kernel.c	/^static void kernel_request(struct request_queue *q)$/;"	f	file:
+ktime_erase	flash_dram.c	/^static const ktime_t ktime_erase = { .tv64 = ERASE_LATENCY * 1000 };$/;"	v	file:
+ktime_read	flash_dram.c	/^static const ktime_t ktime_read =  { .tv64 =  READ_LATENCY * 1000 };$/;"	v	file:
+ktime_write	flash_dram.c	/^static const ktime_t ktime_write = { .tv64 = WRITE_LATENCY * 1000 };$/;"	v	file:
+l_node	pm.h	/^		struct leaf_node_ *l_node;	\/\/ index_node$/;"	m	union:leaf_node_::__anon2	typeref:struct:leaf_node_::__anon2::leaf_node_
+l_node	pm.h	/^	leaf_node l_node[ROOT_NODE_SIZE * INDEX_NODE_SIZE * LEAF_NODE_SIZE];$/;"	m	struct:extents_node_
+lba	host.h	/^	sector_t lba;$/;"	m	struct:host_command
+leaf_node	pm.h	/^} leaf_node;$/;"	t	typeref:struct:leaf_node_
+leaf_node_	pm.h	/^typedef struct leaf_node_ {$/;"	s
+left_skip	flash.h	/^	uint32_t left_skip;$/;"	m	struct:bank_cmd
+list	host.h	/^	struct list_head list;$/;"	m	struct:host_command	typeref:struct:host_command::list_head
+lock	host.h	/^	spinlock_t lock;$/;"	m	struct:event_queue
+lock	kernel.c	/^	spinlock_t lock;$/;"	m	struct:kernel_device	file:
+lpn	pm.h	/^	uint32_t lpn	: 16;$/;"	m	struct:leaf_node_
+map_type	pm.h	/^	uint32_t map_type;			\/\/ extents table : 0 or page mapping : 1$/;"	m	struct:region_node_
+mem	ftl.c	/^void *mem;								\/\/ total memory$/;"	v
+mlc-objs	Makefile	/^mlc-objs := kernel.o flash_dram.o cache.o pm.o ftl.o host.o$/;"	m
+move_back_inode	pm.c	/^void move_back_inode (leaf_node *i_node, int i_num)$/;"	f
+move_back_node	pm.c	/^void move_back_node (leaf_node *l_node, int l_num)$/;"	f
+move_forward_inode	pm.c	/^void move_forward_inode(leaf_node *i_node, int i_num)$/;"	f
+move_forward_node	pm.c	/^void move_forward_node(leaf_node *l_node, int l_num)$/;"	f
+obj-m	Makefile	/^obj-m := mlc.o$/;"	m
+page	flash.h	/^	uint32_t page;$/;"	m	struct:bank_cmd
+page_mem	flash.h	/^	unsigned char (* page_mem)[PAGES_PER_BLOCK][PHY_PAGE_SIZE];$/;"	m	struct:bank_hw
+page_ppn	pm.h	/^	uint32_t page_ppn[ROOT_NODE_SIZE];		\/\/ physical page number$/;"	m	struct:region_node_
+pm_entry	pm.h	/^} pm_entry;$/;"	t	typeref:struct:pm_entry_
+pm_entry_	pm.h	/^typedef struct pm_entry_ {$/;"	s
+pm_init	pm.c	/^uint32_t pm_init(void *mem)$/;"	f
+ppn	pm.h	/^		uint32_t ppn;			\/\/ leaf_node$/;"	m	union:leaf_node_::__anon2
+ppn	pm.h	/^	uint32_t ppn;$/;"	m	struct:pm_entry_
+ptr_cache_e	pm.h	/^	extents_node *ptr_cache_e;	\/\/ cache pointer$/;"	m	struct:region_node_
+ptr_cache_p	pm.h	/^	pm_entry *ptr_cache_p[ROOT_NODE_SIZE];	\/\/ cache pointer$/;"	m	struct:region_node_
+r_node	pm.h	/^	root_node r_node[ROOT_NODE_SIZE];$/;"	m	struct:extents_node_
+read_buf	flash.h	/^	void * read_buf;$/;"	m	struct:bank_hw
+read_extents	pm.c	/^leaf_node *read_extents(leaf_node *i_node, uint32_t lpn, uint32_t *i_offset, uint32_t *l_offset)$/;"	f
+read_pagemap	pm.c	/^pm_entry *read_pagemap(pm_entry *page_map, uint32_t lpn)$/;"	f
+rearrange_index_node	pm.c	/^void rearrange_index_node(uint32_t r_num, uint32_t i_num, uint32_t l_num, extents_node *e_node, leaf_node *l_node, void *callback)$/;"	f
+ref_type	cache.h	/^	uint32_t ref_type	: 1;	\/\/ extents map(0)	page map(1)$/;"	m	struct:cache_idx_entry_
+region_idx_table	pm.c	/^static uint32_t *region_idx_table;		\/\/ region table mapping info$/;"	v	file:
+region_node	pm.h	/^} region_node;	\/\/ total size (140)$/;"	t	typeref:struct:region_node_
+region_node_	pm.h	/^typedef struct region_node_ {	$/;"	s
+region_table	pm.c	/^region_node *region_table;				\/\/ region table$/;"	v
+remain	host.h	/^	atomic_t remain;	\/\/ remaining issued flash operation$/;"	m	struct:host_command
+req	host.h	/^	struct request * req;$/;"	m	struct:host_command	typeref:struct:host_command::request
+reserved_block_ptr	ftl.h	/^	uint32_t reserved_block_ptr;	\/\/ block in reserved region$/;"	m	struct:ftl_metadata_
+reserved_write_ptr	ftl.h	/^	uint32_t reserved_write_ptr;	\/\/ region page in reserved region$/;"	m	struct:ftl_metadata_
+right_skip	flash.h	/^	uint32_t right_skip;$/;"	m	struct:bank_cmd
+root_node	pm.h	/^} root_node;$/;"	t	typeref:union:root_node_
+root_node_	pm.h	/^typedef union root_node_ {$/;"	u
+sectors	host.h	/^	ssize_t sectors;$/;"	m	struct:host_command
+select_clock	cache.c	/^uint32_t select_clock(void)$/;"	f
+set_free_blk_bitmap	ftl.c	/^void set_free_blk_bitmap(uint32_t blk_num)$/;"	f
+size	pm.h	/^	uint32_t size	: 15;$/;"	m	struct:leaf_node_
+spare_mem	flash.h	/^	unsigned char (* spare_mem)[PAGES_PER_BLOCK][PHY_PAGE_SIZE];$/;"	m	struct:bank_hw
+status	flash.h	/^	volatile int status; \/\/ 0 = idle, 1 = setting, 2 = working or done$/;"	m	struct:bank_hw
+type	flash.h	/^	int type;$/;"	m	struct:bank_cmd
+type	host.h	/^	int type;		\/\/ CMD_READ, CMD_WRITE$/;"	m	struct:host_command
+update_bit	cache.h	/^	uint32_t update_bit	: 1;$/;"	m	struct:cache_idx_entry_
+update_physical_address	cache.c	/^void update_physical_address(uint32_t lba, uint32_t sectors, uint32_t new_ppn, void *callback)$/;"	f
+update_physical_address_in_extents	pm.c	/^void update_physical_address_in_extents(uint32_t lba, uint32_t sectors, uint32_t new_ppn, extents_node *e_node, void *callback)$/;"	f
+update_physical_address_in_pagemap	pm.c	/^void update_physical_address_in_pagemap(pm_entry *page_map, uint32_t lpn, uint32_t size, uint32_t new_ppn)$/;"	f
+update_region	pm.c	/^uint32_t update_region(uint32_t rg_num, void *callback)$/;"	f
+update_region_idx_ppn	pm.c	/^void update_region_idx_ppn(uint32_t num, uint32_t free_page)$/;"	f
+used	pm.h	/^	uint32_t used	: 1;$/;"	m	struct:leaf_node_
+write_add_count	ftl.c	/^uint32_t write_add_count;				\/\/ 추가 발생하는 write count$/;"	v
+write_block_ptr	ftl.h	/^	uint32_t write_block_ptr;		\/\/ data block$/;"	m	struct:ftl_metadata_
+write_buf	flash.h	/^	void * write_buf;$/;"	m	struct:bank_hw
+write_map_block_ptr	ftl.h	/^	uint32_t write_map_block_ptr;	\/\/ map block$/;"	m	struct:ftl_metadata_
+write_map_ptr	ftl.h	/^	uint32_t write_map_ptr;			\/\/ map page pointer in map block$/;"	m	struct:ftl_metadata_
+write_ptr	ftl.h	/^	uint32_t write_ptr;				\/\/ data page in data block$/;"	m	struct:ftl_metadata_
