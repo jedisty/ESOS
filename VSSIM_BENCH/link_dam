@@ -1,0 +1,67 @@
+# File: link_dam
+# Date: 2014. 12. 04.
+# Author: Jinsoo Yoo (jedisty@hanyang.ac.kr)
+# Copyright(c)2014
+# Hanyang University, Seoul, Korea
+# Embedded Software Systems Laboratory. All right reserved
+
+#!/bin/bash
+# This file used for linking : QEMU <-> SSD FTL SOURCE
+# For "SSD PAGE MAPPING FTL"
+# Usage : Just typing your shell -> " $./link_pm "
+
+# ------------------- Source File location -----------------------      ----- linked file destination ----
+
+# Makefile
+ln -s ./make_dir/Makefile_dam					./Makefile
+
+# SSD operation control header file "common.h"
+ln -s ../FTL_SOURCE/COMMON/common.h				./common.h
+ln -s ../FTL_SOURCE/COMMON/ftl_perf_manager.h			./ftl_perf_manager.h
+ln -s ../FTL_SOURCE/COMMON/ftl_perf_manager.c			./ftl_perf_manager.c
+ln -s ../FTL_SOURCE/COMMON/ftl_meta_manager.h			./ftl_meta_manager.h
+ln -s ../FTL_SOURCE/COMMON/ftl_meta_manager.c			./ftl_meta_manager.c
+
+# HEADER FILE
+ln -s ../FTL_SOURCE/DA_MAP/ftl.h				./ftl.h
+ln -s ../FTL_SOURCE/DA_MAP/ftl_block_manager.h			./ftl_block_manager.h
+ln -s ../FTL_SOURCE/DA_MAP/ftl_inverse_mapping_manager.h	./ftl_inverse_mapping_manager.h
+ln -s ../FTL_SOURCE/DA_MAP/ftl_gc_manager.h			./ftl_gc_manager.h
+
+ln -s ../FTL_SOURCE/DA_MAP/ftl_pm.h				./ftl_pm.h
+ln -s ../FTL_SOURCE/DA_MAP/ftl_pm_mapping_manager.h		./ftl_pm_mapping_manager.h
+
+ln -s ../FTL_SOURCE/DA_MAP/ftl_bm.h				./ftl_bm.h
+ln -s ../FTL_SOURCE/DA_MAP/ftl_bm_mapping_manager.h		./ftl_bm_mapping_manager.h
+
+
+ln -s ../SSD_MODULE/ssd_io_manager.h				./ssd_io_manager.h
+ln -s ../SSD_MODULE/ssd_log_manager.h				./ssd_log_manager.h
+
+ln -s ../FIRMWARE/firm_buffer_manager.h				./firm_buffer_manager.h
+
+# SOURCE FILLE
+ln -s ../FTL_SOURCE/DA_MAP/ftl.c				./ftl.c
+ln -s ../FTL_SOURCE/DA_MAP/ftl_block_manager.c			./ftl_block_manager.c
+ln -s ../FTL_SOURCE/DA_MAP/ftl_inverse_mapping_manager.c	./ftl_inverse_mapping_manager.c
+ln -s ../FTL_SOURCE/DA_MAP/ftl_gc_manager.c			./ftl_gc_manager.c
+
+ln -s ../FTL_SOURCE/DA_MAP/ftl_pm.c				./ftl_pm.c
+ln -s ../FTL_SOURCE/DA_MAP/ftl_pm_mapping_manager.c		./ftl_pm_mapping_manager.c
+
+ln -s ../FTL_SOURCE/DA_MAP/ftl_bm.c				./ftl_bm.c
+ln -s ../FTL_SOURCE/DA_MAP/ftl_bm_mapping_manager.c		./ftl_bm_mapping_manager.c
+
+
+ln -s ../SSD_MODULE/ssd_io_manager.c				./ssd_io_manager.c
+ln -s ../SSD_MODULE/ssd_log_manager.c 				./ssd_log_manager.c
+
+ln -s ../FIRMWARE/firm_buffer_manager.c				./firm_buffer_manager.c
+
+# SSD Monitor
+ln -s ../MONITOR/SSD_MONITOR_PM/ssd_monitor_p			./ssd_monitor
+
+# SSD_configuration setting
+#ln -s ../CONFIG/ssd.conf					./data/ssd.conf
+ln -s ../CONFIG/vssim_config_manager.h				./vssim_config_manager.h
+ln -s ../CONFIG/vssim_config_manager.c				./vssim_config_manager.c
