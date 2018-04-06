@@ -1,0 +1,1 @@
+cmd_/home/jedisty/temp/160411_bitmap_ss/bitmap.ko := ld -r -m elf_x86_64 -T ./scripts/module-common.lds --build-id  -o /home/jedisty/temp/160411_bitmap_ss/bitmap.ko /home/jedisty/temp/160411_bitmap_ss/bitmap.o /home/jedisty/temp/160411_bitmap_ss/bitmap.mod.o

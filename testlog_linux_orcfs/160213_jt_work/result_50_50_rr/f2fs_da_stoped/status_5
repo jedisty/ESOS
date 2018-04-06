@@ -1,0 +1,49 @@
+
+=====[ partition info(sdb). #0 ]=====
+[SB: 1] [CP: 2] [SIT: 10] [NAT: 110] [SSA: 262] [MAIN: 113920(OverProv:11532 Resv:6144)]
+
+Utilization: 85% (44608310 valid blocks)
+  - Node: 43827 (Inode: 5, Other: 43822)
+  - Data: 44564483
+  - Inline_data Inode: 0
+
+Main area: 113920 segs, 890 secs 890 zones
+  - COLD  data: 64491, 503, 503
+  - WARM  data: 64368, 502, 502
+  - HOT   data: 113408, 886, 886
+  - Dir   dnode: 113792, 889, 889
+  - File   dnode: 110790, 865, 865
+  - Indir nodes: 113536, 887, 887
+
+  - Valid: 43920
+  - Dirty: 63052
+  - Prefree: 17
+  - Free: 6931 (50)
+
+CP calls: 4468
+GC calls: 647808 (BG: 0)
+  - data segments : 571520
+  - node segments : 76288
+Try to move 143826417 blocks
+  - data blocks : 128071403
+  - node blocks : 15755014
+
+Extent Hit Ratio: 0 / 0
+
+Balancing F2FS Async:
+  - nodes:    0 in 43803
+  - dents:    0 in dirs:   0
+  - meta:  136 in 10681
+  - NATs:     43827
+  - SITs:     27617
+  - free_nids:      1670
+
+Distribution of User Blocks: [ valid | invalid | free ]
+  [------------------------------------------|--------|]
+
+SSR: 0 blocks in 0 segments
+LFS: 292439474 blocks in 571169 segments
+
+BDF: 49, avg. vblocks: 44735
+
+Memory: 237738 KB = static: 19758 + cached: 217980
