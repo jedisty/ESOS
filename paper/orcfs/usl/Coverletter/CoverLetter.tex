@@ -1,0 +1,69 @@
+% Document type: LaTeX
+% CHOOSE EXACTLY ONE DOCUMENTSTYLE LINE
+%\documentstyle{letter}    % Plain letters - no letterhead
+\documentclass[12pt]{letter} % Needs Latex2e, dvips, Ghostscript
+%
+
+\usepackage{Hanyangletter,epsfig}
+%% My Return address
+\address{
+Fusion Technology Center \#804\\
+Department of Computer and Software\\
+Hanyang University\\
+Haengdang 1-dong, Seongdong-gu\\
+Seoul 133-791 Korea}
+\def\loginname{jedisty@hanyang.ac.kr}
+\def\telephonenum{+82-2-2220-4579}
+%% END of My Return address
+
+%% My Signature
+\name{Jinsoo Yoo}
+\title{Ph.D candidate \\ Hanyang University \\ Seoul, Republic of Korea \\ jedisty@hanyang.ac.kr}
+\signature{Jinsoo Yoo}
+%% END of My Signature
+
+% \pagestyle{plain} % For multipage letters with no headings
+\pagestyle{headings} % For multipage letters with headings
+
+\begin{document}
+\begin{letter}{Dr. Sam H. Noh Professor\\
+               Editor-in-Chief \\
+               UNIST\\
+               (Ulsan National Institute of Science and Technology) \\
+               50, UNIST-gil \\
+               Ulsan 44919 \\
+               Republic of Korea}
+
+\opening{Dear Professor Sam H. Noh,}
+
+It is our great pleasure to have an opportunity to submit our work in your renowned journal. The title of the work is "OrcFS: Orchestrated File System for Flash Storage" and it is a collaboration work with Samsung Electronics. The info on the authors are as follows.
+\begin{enumerate}
+
+\item[$\cdot$] Jinsoo Yoo, Hanyang University, jedisty@hanyang.ac.kr
+
+\item[$\cdot$] Joontaek Oh, Hanyang University, na94jun@hanyang.ac.kr
+
+\item[$\cdot$] Seongjin Lee, Hanyang University, insight@hanyang.ac.kr
+
+\item[$\cdot$] Youjip Won (Corresponding Author), Hanyang University, yjwon@hanyang.ac.kr
+
+\item[$\cdot$] Jin-Yong Ha, Samsung Electronics, jy200.ha@samsung.com
+
+\item[$\cdot$] Jongsung Lee, Samsung Electronics, js0007.lee@samsung.com
+
+\item[$\cdot$] Junseok Shim, Samsung Electronics, junseok.shim@samsung.com
+\end{enumerate}
+
+In this work, we investigate the redundancies in a modern storage I/O stack and effectively eliminate all the redundancies across the layers. A few modern file systems adopt sophisticated append-only data structures to manage its space in an effort to optimize the behavior with respect to the append-only nature of the NAND Flash. While the benefits of adopting append-only data structure seems to be fairly promising, they make the stack of software layers full of unnecessary redundancies which leaves substantial room for improvement. We develop OrcFS, Orchestrated File System for Flash storage. It vertically integrates the log-structured file system and the Flash-based storage device eliminating all the redundancies across the layers. OrcFS reduces the device mapping table requirement to 1/465 against the page mapping and removes 1/4 of the write volume under heavy random write workload.
+
+We believe that the findings of this study are relevant to the scope of your journal and will be of interest to its readership.
+We confirm that this manuscript has not been published elsewhere and is not under consideration for publication elsewhere.
+
+Once again, we are honored to submit our work to the renowned journal.
+
+\closing{Sincerely,}
+
+\endletter
+\end{letter}
+\end{document}
+

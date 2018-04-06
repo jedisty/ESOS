@@ -1,0 +1,1684 @@
+% TEMPLATE for Usenix papers, specifically to meet requirements of
+%  USENIX '05
+% originally a template for producing IEEE-format articles using LaTeX.
+%   written by Matthew Ward, CS Department, Worcester Polytechnic Institute.
+% adapted by David Beazley for his excellent SWIG paper in Proceedings,
+%   Tcl 96
+% turned into a smartass generic template by De Clarke, with thanks to
+%   both the above pioneers
+% use at your own risk.  Complaints to /dev/null.
+% make it two column with no page numbering, default is 10 point
+
+% Munged by Fred Douglis &lt;douglis@research.att.com&gt; 10/97 to separate
+% the .sty file from the LaTeX source template, so that people can
+% more easily include the .sty file into an existing document.  Also
+% changed to more closely follow the style guidelines as represented
+% by the Word sample file. 
+
+% Note that since 2010, USENIX does not require endnotes. If you want
+% foot of page notes, don't include the endnotes package in the 
+% usepackage command, below.
+
+% This version uses the latex2e styles, not the very ancient 2.09 stuff.
+%\documentclass[letterpaper,twocolumn,10pt]{article}
+%\usepackage{usenix,epsfig,endnotes}
+
+\documentclass[preprint,nocopyrightspace]{sigplanconf-eurosys}
+\usepackage{epsfig,endnotes}
+\usepackage{kotex}
+\usepackage{subfigure}
+\usepackage{comment}
+\usepackage{hyperref}
+\begin{document}
+
+%don't want date printed
+%\date{}
+
+%make title bold and 14 pt font (Latex default is non-bold, 16 pt)
+\title{\Large \bf Unified Storage Layer: Eliminating the Compound
+Garbage Collection in Log-Structured Filesystem for Flash Storage}
+
+
+%\authorinfo{Name1}
+%          {Affiliation1}
+%           {Email1}
+\authorinfo{\#195}
+
+
+\maketitle
+
+% Use the following at camera-ready time to suppress page numbers.
+% Comment it out when you first submit the paper for review.
+%\thispagestyle{empty}
+
+
+\subsection*{Abstract}
+
+
+In this work, we develop a new IO stack, \emph{Unified Storage Layer,
+  USL}, which vertically integrates the log structured filesystem and
+the Flash based storage device. Despite their elegance, when each I/O
+layers are layered, the I/O stack becomes vulnerable to \emph{Compound
+  Garbage Collection} problem; the notion describes a redundant effort
+to garbage collect some data which are already cleaned on
+filesystem. USL consists of three key technical ingredients: (i)
+Direct binding of filesystem sections and storage superblocks, which
+are garbage collection units, (ii) Filesystem I/O patching to align
+the I/O size with physical Flash page size, and (iii) Disaggregate
+mapping to de-virtualize subset of flash blocks statically bind them
+with filesystem segments. The design of USL makes two things possible
+which bears profound implications in I/O stack design. First, USL
+dispenses with the need of large address translation table. Second,
+and more importantly, static binding entirely eliminates the root
+cause for compound garbage collection. We implement USL using F2FS and
+Samsung 843Tn SSD. Our result shows that USL effectively reduces the
+size of SSD metadata by 1/54. It also reduces the write amplification
+by 40$\%$ and increases random write IOPS by 77$\%$.
+
+
+
+
+\begin{comment}
+In this work, we develop a new IO stack, \emph{Unified Storage Layer,
+  USL}, which vertically integrates the log structured filesystem and
+the Flash based storage device. The filesystem and Flash based storage
+have evolved in their own way to optimize itself against the other.
+The Flash storage adopts sophisticated software layer called flash
+translation layer to hide its append-only nature from the in-place
+update based filesystem. The log-structured filesystem has been
+proposed to relieve a Flash storage from expensive address translation
+and the garbage collection overhead via maintaining the filesystem
+blocks in append-only manner. Despite their elegance, when they are
+combined, the IO stack becomes subject to unacceptable performance
+deficiency primarily due to the redundant effort to make the room to
+accommodating the newly arriving data in both layers. We call this
+phenomenon as \emph{Compound Garbage Collection}.  The Unified Storage
+Layer consists of three key technical ingredients: (i) superblock to
+segment static binding where the individual superblocks in SSD are
+statically bound to the individual system segments, (ii) Block
+Patching in the filesystem to align the IO size with the Flash page
+size, and (iii) Disaggregate Mapping which allows the Flash storage to
+maintain a subset of its flash blocks by itself, not statically bound
+to the filesystem segment.  This static binding bears profound
+implications in IO stack design. First, the SSD can dispense with
+address translation layer since the filesystem in USL maintains the
+mapping between the filesystem blocks to the physical flash
+pages. Second, more importantly, the static binding entirely
+eliminates the root cause for compound garbage collection since the
+segment cleaning activity of the log-structured filesystem directly
+consolidates the valid Flash pages in the Flash storage.
+
+We implement a prototype Unified Storage Layer. We use F2FS (Flash
+Friendly Filesystem) and Samsung 843Tn SSD as the baseline platform and
+modify each of them to form a Unified Storage layer. USL reduces the SSD
+mapping table size by 1/54. USL effectively eliminates the root cause
+for compound garbage collection. Subsequently, compared to F2FS over
+commodity flash storage, the USL reduces the write amplification by
+40$\%$ and increases random write performance by 77$\%$.
+\end{comment}
+
+
+
+
+\section{Introduction}
+
+The advent of NAND Flash memory and many of its favorable
+characteristics such as low I/O latency, low power, and shock
+resistance led to wide spread of Sold State Drives (SSDs). Few other
+driving forces behind its popularity can be reduced to the price and
+capacity. The price of 1 Gbyte of NAND devices are now well under a
+dollar \cite{ssdprice}, and 3D-stacking technology \cite{3dxpoint} has
+opened a door to increase the capacity of SSDs substantially. However,
+as the technology moves towards storing more bits in NAND Flash cells,
+the reliability and metadata management overhead of the device are the
+two issues that require constant attention.
+
+One crucial complications of SSDs which makes it so much different
+from HDDs is that it has to be erased before any data can be in-place
+updated. But, the unit and latency of read/program and erase operation
+is not the same. The unit of read/program is a page, which has size of
+4 to 16 Kbyte, and unit of erase is a block, which is group of 128 to
+256 pages. And, latency of erase operation (e.g. 1.5 msec
+\cite{samsung_flash}) is about two times slower than that of write
+operation (e.g. 0.8 msec \cite{samsung_flash}). SSDs cannot afford to
+behave like HDDs and in-place update a page.
+
+Thus, the state-of-the-art firmware, called Flash Translation Layer
+(FTL), not only has to hide asymmetries between read/program and erase
+operations, but also has to translate in-place update requests from
+filesystem to out-of-place writes in storage device. The most
+important job of FTL is not only to provide such abstraction but also
+to hide the overhead of garbage collecting dirty pages which is
+generated as a result of performing out-of-place updates. Because of
+this, SSDs are considered as one form of log system and
+share similar characteristics with log-structured filesystems
+\cite{rosenblum1992design, lee2015f2fs, woodhouse2001jffs,
+  engel2005logfs}.
+
+\begin{comment}
+  For example, when a SSD receives a
+  request to update LBA $n$, which was originally in page $i$ of block
+  $m$ in SSD, FTL invalidates page $i$ and searches for available free
+  page in block $m$ or in other blocks. Then, FTL writes updated data to
+  the found free page. Actual physical location of  LBA $n$ is subject
+  to change, but its job of FTL to keep the account of all changes in
+  mapping table.
+\end{comment}
+
+Since the advent of flash memory, people have anticipated the need of
+mapping table and proposed several sophisticated mapping schemes
+\cite{kim2002space, fast07, last08, kang2006superblock, dftl09};
+however, it is a known fact that most of commercial SSDs makes use of
+page mapping for performance reasons \cite{ban1995flash}. But, it
+comes with the cost of large memory requirement to cache the entire
+mapping table, e.g., the size of page mapping table in 4 Tbyte SSD
+with 4 Kbyte page is 4 Gbyte. The size may be reduced by using block
+mapping, but the downside is that such SSDs cannot handle random write
+workload efficiently \cite{kim2002space}. If we are to have both low
+memory footprint and high performance, then all random writes have to
+be translated to sequential writes. Considering all, log-structured
+filesystem seems to be the best fit for the problem.
+
+
+
+Using log-structured filesystem on top of SSD may improve the I/O
+performance; however stacking log on top of other log system creates
+new sets of problems \cite{yang2014don}. Along with the overhead of
+keeping the mapping table on both layers, such systems generate more
+severe issue called compound garbage collection---the phenomenon where
+log structured storage performs garbage collection on data that
+log-structured filesystem already completed performing segment
+cleaning. As the result of compound garbage collection storage has to
+re-write data that is already in the storage device and recreate
+segment cleaning overhead of filesystem on storage.
+
+In this paper, we introduce Unified Storage Layer (USL) to address two
+issues in exploiting the layered log-structured system, which are the
+size of mapping table and compound garbage collection. USL is
+collection of modified log-structured filesystem (F2FS) and a SSD with
+disaggregate mapping scheme. In essence, disaggregate mapping scheme
+allows reducing the mapping table size to 1/54 of page mapping. In
+this scheme, each logical address of a section, which is the segment
+cleaning unit in F2FS, is binded with physical address of a block,
+which is the garbage collection unit of SSD. USL resolves compound
+garbage collection issue by delegating the job of device garbage
+collection to filesystem. We modified the firmware of 843Tn SSD
+\cite{ssd843tn} and F2FS to implement USL and compared the performance
+with existing systems. The write amplification in USL is about 40$\%$
+lower and IOPS is 77$\%$ higher compared to that of base F2FS in
+layered log-structured system.
+
+\section{Background}
+
+\subsection{Segment Cleaning and Log-structured Filesystem}
+
+A log-structured filesystem is a append only system. All writes are
+sequential which makes it ideal for SSDs. In log-structured
+filesystem, an entire filesystem is divided with a unit called
+segment, which is is a set of consecutive filesystem blocks. Upon
+receiving a write request, the log filesystem allocates a free segment
+for data and use it to append more data until the segment is
+full. Note that the size of segment varies, e.g., 8 Mbyte in NILFS2
+\cite{nilfs_segment_size}, 512Kbyte to 1Mbyte in Sprite-LFS
+\cite{rosenblum1992design}, and 2 Mbyte in F2FS
+\cite{f2fs_segment_size}. F2FS is a fairly young log filesystem which
+targets to assimilate the characteristics of Flash memory. Recent
+report on F2FS \cite{lee2015f2fs} shows that its performance is about
+3.1 times better than EXT4 \cite{cao2007ext4} on some workloads.
+% Jeong et al. \cite{jeong2013stack} showed that F2FS is also well suited for mobile workloads. 
+Fig \ref{fig:f2fs_partition} describes the layout of F2FS filesystem
+partition. There are two areas in F2FS filesystem partition: Metadata
+area keeps filesystem related metadata and Main area keeps user
+generated data along with file related metadata (node).
+
+
+\begin{figure}[t]
+\begin{center}
+\includegraphics[width=3.2in]{./figure/f2fs_layout}
+\caption{F2FS Partition Layout}
+\label{fig:f2fs_partition}
+\vspace{-1.9em}
+\end{center}
+\end{figure}
+
+
+\begin{comment}
+  Main area of the filesystem is divided into 2 Mbyte segments. One
+  interesting part of F2FS is that some metadata and even some regular
+  files are in-place updated and forces storage device take care of
+  the in-place updates. Segments in Main area are categorized into
+  three groups (Warm, Cold, and Hot) for node and data segments
+  depending on I/O workload characteristics.
+\end{comment}
+
+When the log-structured filesystem receives updates to existing data,
+it invalidates old data and appends the new data at the end of the
+segment. One benefit of appending new data at the end is that it can
+exploit sequential I/O performance of storage devices. But, the
+invalidated data has to be cleaned at some point in time. These
+systems spend considerable amount of time in reclaiming the space used
+by invalidated data blocks and copying valid blocks in such
+segments. The process is called segment cleaning, and all
+log-structured systems suffer from the overhead of segment cleaning.
+
+\begin{comment}
+  F2FS triggers segment cleaning when the number of free segments goes
+  under predefined threshold. The unit of garbage collection in F2FS
+  is a section which is defined as groups of segments---by default it
+  is set as one segment in a section. A victim section in a segment
+  cleaning process is decided by two segment cleaning policies called
+  foreground and background segment cleaning, which are base on greedy
+  \cite{kawaguchi1995flash} and cost benefit
+  \cite{rosenblum1992design}, respectively. Once the victim is
+  selected, valid data in the sections are copied to the current
+  segment and reverts the section to free section. Note that segment
+  cleaning process impedes user I/O operations because it is
+  non-preemptive operation.
+\end{comment}
+
+\subsection{Garbage Collection and Flash Storage}
+
+Since SSDs exhibit log-structured like behaviors, garbage collection
+of invalid pages is a must for the storage. 
+% It is because FTL performs all updates in out-of-place manner,
+% therefore the storage needs to handle the invalid data. 
+Similar to segment cleaning in filesystem, SSD also runs garbage
+collection when there is not enough empty space in the storage. The
+unit of garbage collection in SSD is a block which is analogous to a
+segment in the filesystem segment cleaning. Once garbage collection
+algorithm selects a victim block, valid pages in the block are copied
+to an empty pages in other blocks. Then, it erases the block to revert
+it as an empty block.
+
+
+\begin{figure}[t]
+\begin{center}
+\includegraphics[width=3.2in]{./figure/ssd_internal.eps}
+\caption{Block Diagram of an SSD}
+\label{fig:ssd_internal}
+\end{center}
+\vspace{-1.9em}
+\end{figure}
+
+
+Note that Flash memories cannot serve any read/write operations during
+a garbage collection process. One way to hide the latency of
+processing garbage collection is to exploit the parallelism using
+multi-channel configuration. Typical SSDs group NAND Flash memories
+in channels and ways to exploit the parallelism and to maximize the I/O
+performance.  Fig. \ref{fig:ssd_internal} illustrates the architecture
+of an SSD with 2 channel/2 way configuration. When a channel of Flash
+memories are busy with handling garbage collection process, the other
+channel can be used to handle the I/O requests.
+
+\begin{comment}
+  Kang et al. \cite{kang2006superblock} introduced Superblock FTL for
+  In multi-channel/multi-way configuration; ingenuity of Superblock
+  FTL is the introduction of the notion called super-block, which is a
+  group of pages with same offset in NAND blocks on each channel and
+  ways. When Superblock FTL receives a write request, a empty
+  super-block is allocated to store the data. This process repeats
+  until there is no free pages in the current super-block. It
+  naturally makes most out of multi-channel and multi-way parallelism
+  of the SSD. Since the garbage collection in Superblock FTL also
+  exploits super-block as a unit, SSD suffers from garbage collection
+  overhead dearly because it cannot handle any of read/program
+  requests.
+\end{comment}
+
+\subsection{Log-structured Filesystem and SSD}
+
+\begin{comment}
+  Originally, log-structured filesystem came out to improve the random
+  write performance of slow HDDs. Even though the idea of exploiting
+  sequential performance of the device captured many researchers
+  attention, but the fact that there is the overhead of garbage
+  collection made many hesitant in adopt it in a running system.
+\end{comment}
+
+Coming of SSDs has opened a new road for log filesystem because not
+only it is faster than HDDs but also write mechanism in log filesystem
+is very similar to that of SSD. Behind the scenes, FTL manages mapping
+between logical to physical addresses and takes care of out-of-place
+updates. Researchers in the field have proposed many different mapping
+schemes such as page level FTL \cite{ban1995flash}, Block FTL
+\cite{kim2002space}, and hybrid FTLs \cite{kang2006superblock, fast07,
+  last08} which makes use of both page and block mapping schemes.
+
+
+
+
+The unit of mapping scheme is important because it directly affects
+the performance of random write workloads. The relationship is simple:
+smaller mapping unit leads to larger mapping table size and higher
+random performance, and vice versa \cite{kim2002space}. For
+performance reasons, page level FTL has been the de facto mapping
+scheme used in the industries, however, large memory foot print
+requires SSD to adopt larger DRAM memory. Fig \ref{fig:dram_size}
+shows that the size of DRAM increased considerably over the years. It
+shows that about 60$\%$ of SSDs have 512 Mbyte and 1 Gbyte of DRAM.
+
+\begin{figure}[h]
+\begin{center}
+\includegraphics[width=3.2in]{./figure/dram_size.eps}
+\caption{DRAM size Trend in SSDs (From 2011 to 2015)}
+\label{fig:dram_size}
+\vspace{-1.8em}
+\end{center}
+\end{figure}
+
+
+A reasons behind the growth of DRAM size is to reflect the increased
+size of SSD metadata such as mapping table. Suppose, the device never
+has to deal with random write requests, then it does not have to use
+page level mapping; instead it can exploit block level mapping which
+is better for sequential workloads and also significantly reduces the
+size of mapping information. For example, assuming a 256 Gbyte SSD
+with 4 Kbyte page and 2 Mbyte of block, the page level FTL needs to
+store 256 Mbyte of mapping table in DRAM but block FTL only needs to
+store 512 Kbyte of information. Since log filesystem is aimed for
+generating sequential workloads, it would be ideal to match log
+filesystems with SSDs, then it can exploit block level mapping.
+
+
+\vspace{-0.5em}
+\subsection{Layered Log-structured System}
+
+Two log-structured systems stacked on top of each other is called as
+layered log system, and an example of such system is illustrated in
+Fig \ref{fig:layered_log_system}. It shows that log filesystem is on
+top of flash based storage device. When virtual file system sends data
+down to filesystem, the data is recorded in the filesystem
+partition. When there is not enough space left in the partition, the
+filesystem runs segment cleaning to tidy up the invalid data. As a
+result, the filesystem has to send not only the data received from the
+virtual file system but also writes generated by the segment cleaning.
+
+%Upon receiving the data from the filesystem, 
+The device writes the received updates on the storage medium, and FTL
+decides where to put the data. When their is not enough space in the
+storage, SSD runs garbage collection to reclaim free pages for
+incoming data. Initial write volume increases as it is passed down in
+the I/O hierarchy, which is typical in log-structured systems. And, it
+is called Write Amplification.  Larger write amplification means
+trouble for SSD because it not only has to handle more data but also
+reduces the life of the device.
+
+\begin{figure}[th]
+\begin{center}
+\includegraphics[width=2.3in]{./figure/layered_log_system}
+\caption{Example of Layered Log System}
+\label{fig:layered_log_system}
+\vspace{-1.9em}
+\end{center}
+\end{figure}
+
+\begin{comment}
+  Since erase operation in SSDs
+  have larger latency (e.g. 1.5 msec \cite{samsung_flash}) than program
+  operation (e.g. 800 $\mu$sec \cite{samsung_flash}), all writes are not
+  in-place updated but out-of-place updated just like the log structured
+  filesystem. Note that the existing data is invalidated when the new
+  data is stored in else where. This out-of-place update behavior calls
+  for garbage collection. Thus, the final data written on the storage
+  device includes both data received from the filesystem and writes
+  generated from garbage collecting the device.
+\end{comment}
+
+Redundancy in the layered log system is that both layers have to keep
+mapping table to manage the whereabouts of appended data. Suppose a
+log filesystem decides the physical location of the data in SSD, then
+practically the SSD does not have to maintain a mapping table to keep
+account of the updates. Note that mapping table overhead is greater in
+SSDs not only because the size of DRAM in SSDs are much smaller than
+the host system but also unit and latency of operations are different.
+
+\subsection{Measuring WAF of Filesystem}
+\label{subsec:measuring_waf}
+
+The performance of a filesystem or a storage system can be represented
+with a notion called Write Amplification Factor, WAF
+\cite{rosenblum1992design}, which is defined as a ratio of the amount
+of write volume received from a higher level I/O layer and the actual
+amount of write volume the lower level I/O layer has to process. For
+example, WAF of 2 in a storage system means that a filesystem writes 1
+Gbyte and a storage writes 2 Gbyte. In general, higher the WAF means
+lower the performance because of the volume it has to process. In a
+layered log system, combination of segmentation cleaning and garbage
+collection on different layers leads to higher WAF.
+
+We provide analytical WAF of an in-place-update filesystem, Ext4, and
+a log-structured filesystem, F2FS, to compare the inherent performance
+difference between the two filesystems. We assumed that metadata
+related I/O volume is significantly lower than that of user data I/O
+volume and excluded from the computation. Overall system WAF is
+denoted as $WAF_{Total}$, filesystem WAF as $WAF_{fs}$, and storage
+device level WAF as $WAF_{SSD}$.
+
+Analytical filesystem WAF of Ext4 is 1 because it is an in-place
+update filesystem. In a storage system with Ext4, only performance
+bottleneck would be garbage collection of the storage device. Thus,
+total WAF of Ext4 system can be derived as Eq. (\ref{eq:waf_ext4}) and
+it is bounded by WAF of storage device.
+
+\vspace{-0.5em}
+\begin{equation}
+\label{eq:waf_ext4}
+WAF_{Total}^{Ext4} = WAF_{SSD}
+\end{equation}
+
+
+Since segment cleaning on a log filesystem is a must, potentially a
+layered log system suffers from garbage collection of invalid data on
+all log layers. Thus, the WAF of layered log system with F2FS can be
+derived as Eq. (\ref{eq:waf_lls}
+
+\vspace{-0.5em}
+\begin{equation}
+\label{eq:waf_lls}
+WAF_{Total}^{F2FS} = WAF_{fs}\times WAF_{SSD}
+\end{equation}
+
+Finally, total WAF of Unified Storage Layer (USL) is bounded by
+filesystem because it dispenses the need of garbage collection in
+storage device. Instead, USL only performs segment cleaning on
+filesystem and delivers list of sections to erase to the
+storage. Total WAF of USL can be derived as Eq. (\ref{eq:waf_usl}).
+Complete description of USL is presented in Section \ref{sec:USL}.
+
+\vspace{-0.5em}
+\begin{equation}
+\label{eq:waf_usl}
+WAF_{Total}^{USL} = WAF_{fs}
+\end{equation}
+
+Since layered log system with F2FS runs garbage collection on both
+layers, the system is mostly likely be sensitive to garbage collection
+behavior on each layer and naturally will have higher WAF than
+in-place update filesystems. On the contrary, total WAF of Ext4 only
+depends on garbage collection performance of storage device. However,
+underlying SSD must use page mapping for performance reasons, but the
+fact that there is high cost in using it should not be taken lightly,
+especially when the capacity of device is increasing. In Section
+\ref{sec:CompoundGC}, we measure the effect of processing garbage
+collection on each layers of log system and WAF of different systems.
+
+
+\section{Garbage Collection Problem in Layered Log System}
+\label{sec:CompoundGC}
+
+In this section we provide three case studies to illustrate compound
+garbage collection issue in layered log systems.
+
+\begin{comment}
+  The size of mapping table size in large scale SSDs can be reduced only
+  when the size of mapping unit increases; the unit in page level
+  mapping used to be 2 Kbyte and later became 4 Kbyte, and more of the
+  recent SSDs are trying to enlarge the unit to 8 Kbyte or 16 Kbyte
+  \cite{micheloni_inside_nand, samsung_vnand_whitepaper}. Such approach
+  may reduce the size slightly. However,
+\end{comment}
+\begin{comment}
+  % \subsection{Definition}
+  The size of mapping table in large scale SSDs can be reduced only
+  when the size of mapping unit increases; if the upper layer can
+  guarantee that only sequential write workloads are issued to the
+  lower layer, using block level mapping will suffice for reducing the
+  size of mapping table. Log-structured filesystem is one of the
+  candidates to transform all writes to sequential write workload, but
+  without proper handling of the write amplification in layered log
+  system, it is not much of a help, especially when garbage collection
+  in storage device is triggered by the segment cleaning of the file
+  system. In this section we provide three case studies where compound
+  garbage collection matters to the layered log systems.
+\end{comment}
+
+\subsection{Case Study 1: Uncoordinated Garbage Collection}
+\label{subsec:case_study_1}
+
+
+In a log-structured system, update of an existing data is processed in
+two steps: first, the updated data is stored in a free space and
+second, the existing data is invalidated. However, when
+log-structured system is layered on top of each other, update of an
+existing data can be processed differently. Fig. \ref{fig:comp_gc_2}
+illustrates the case of uncoordinated garbage collection. In this
+example, let us assume a block in a SSD has ten pages; for simplicity
+of the example, the size of the page is 512 byte, and segment 0 holds
+LBA 0 to LBA 3 and segment 1 holds LBA 4 to LBA 7.
+Fig. \ref{fig:comp_gc_2}(a) shows the state of a filesystem with file
+$A$ which has length of four logical blocks; data blocks from $A_1$ to
+$A_4$ are stored in LBA0 to LBA3, respectively. Upon synchronization
+of data in segment 0, the storage device stores LBA 0 through LBA3 on page
+from 0 to 3 in block 0. Fig. \ref{fig:comp_gc_2}(b) illustrates the
+state of the system after $A_1$ through $A_3$ is updated in segment
+0. Updated data from $A_1$ to $A_3$ is appended to free segment, which
+in this case is segment 1; updated version of $A_1$ to $A_3$ are
+stored in LBA 4 to LBA 6, and they are physically placed in page 4 to
+page 6, respectively. Note that storage device have no idea whether
+the data is updated version of existing data; thus, the storage device
+does not invalidate the pages from 0 to 3, on the contrary, LBAs from
+0 to 3 in the filesystem is invalidated. 
+
+Suppose segment cleaning and garbage collection in each layer is
+triggered simultaneously, the filesystem may clean the invalid file
+blocks $A_1$ to $A_3$, but since the pages in the SSD are not
+invalidated, the old data is left in the storage. In some scenarios,
+garbage collection of block 0 may even copy the pages from 0 to 2. 
+
+As shown in the example, uncoordinated garbage collection describes
+the case where blocks in filesystem are invalidated, but storage
+device is unaware of the fact and performs garbage collection to copy
+the corresponding data. Fortunately, TRIM command \cite{shu2007data}
+solves uncoordinated garbage collection, which is a SATA command to
+sends the list of invalidated filesystem LBAs to SSDs. Upon receiving
+the command, SSD also invalidates the list of LBAs in pages and does
+not copy the pages invalidated via the command. It is important to
+note that TRIM command is not the absolute solution for uncoordinated
+garbage collection because filesystem does not send TRIM command
+immediately when invalid LBAs are generated. F2FS, for example, sends
+TRIM command when it checkpoints the filesystem. Section
+\ref{subsec:io_performance} provides experiment results on
+uncoordinated garbage collection.
+
+
+\begin{figure}[t]
+\begin{center}
+\includegraphics[width=3in]{./figure/comp_gc_scenario_2}
+\caption{Example of Uncoordinated Garbage Collections}
+\label{fig:comp_gc_2}
+\vspace{-1.5em}
+\end{center}
+\end{figure}
+
+
+\subsection{Case Study 2: Compound Garbage Collection}
+\label{subsec:case_study_2}
+
+\begin{figure*}[t]
+\begin{center}
+\includegraphics[width=5.7in]{./figure/comp_gc_scenario_1}
+\caption{Example of Compound Garbage Collection ($Ln$ means LBA $n$)}
+\label{fig:comp_gc_1}
+\end{center}
+\vspace{-1.5em}
+\end{figure*}
+
+
+We define compound garbage collection as the case where the storage
+level log system performs garbage collection on data blocks which are
+already segment cleaned by filesystem. Fig.
+\ref{fig:comp_gc_1} illustrates a scenario of compound garbage
+collection. We assume that each segment on a filesystem has four pages
+and the filesystem performs garbage collection in units of
+segments. We further assume that segments that are not depicted in Fig.
+\ref{fig:comp_gc_1} are filled with cold data. Each block on a SSD
+contains ten pages. The filesystem and the SSD performs garbage
+collection when only one empty segments and only one empty block is
+available on the layer, respectively. Additionally, we assume that SSD
+is aware of the invalidated LBAs through TRIM command.
+
+
+Each page in the filesystem and the SSD in Fig \ref{fig:comp_gc_1}(a)
+keeps the LBA of its respective page, which is denoted as `$L\#$' where
+$\#$ represents the LBA number, and a flag to note validity of the
+page. The flag represents two states of the corresponding page, $V$ is
+for valid and $I$ is for invalid page. Let’s further assume that
+initially segment 0 holds data pages for LBA1 to LBA4, i.e., from
+$L1$ to $L4$, and segment 1 contains LBA5 and LBA6, i.e., $L5$ and
+$L6$. Both segments are stored in block 0 on the SSD. Note that all
+the flags on the filesystem and the SSD shows that all the data is
+valid.
+
+Fig \ref{fig:comp_gc_1}(b) shows the state of the filesystem and the
+SSD after LBA1 and LBA4 is updated. Since both layers are
+log-structured systems, updated data is appended to the end of each
+system. The flags in old pages of the filesystem and SSD are now set
+to invalid. Upon receiving an update, filesystem writes a new data on
+segment 2; the filesystem detects that there is only one segment in
+the system, and thus decides to trigger segment cleaning process. 
+
+Fig. \ref{fig:comp_gc_1}(c) shows the status of each layer after the
+filesystem segment cleaning process. For example, we assume that the
+filesystem selects segment 0 as the victim segment. Valid pages in
+segment 0, $L2$ and $L3$, are copied to available empty segment 2. The
+filesystem notifies the changes in the system to the storage
+device. SSD thinks that $L2$ and $L3$ is updated in filesystem, so it
+invalidates pages 1 and 2. Then, SSD writes $L2$ and $L3$ in page 8
+and page 9 in block 0, respectively. 
+
+After writing to page 8 and page 9, SSD detects that there is only one
+empty block left in the storage system, thus the storage level garbage
+collection takes a place, which is illustrated in Fig
+\ref{fig:comp_gc_1}(d). Recall that, all the other blocks in the
+storage are filled with cold data, thus block 0 is selected as the
+victim for the garbage collection.  All the valid pages in block 0 is
+copied to empty block 1, and block 0 is erased and becomes a free block.
+
+There are two things to note in our second case study. First, storage
+level garbage collection is triggered as a result of filesystem level
+garbage collection. Second, filesystem and storage system relocates
+pages with $L2$ and $L3$ in the course of garbage collecting segment
+0 and block 0, respectively. Recursive garbage collection on the
+filesystem and the storage system forces to rewrite the same data over
+and over. Such compound garbage collection acts as a factor that
+increases Write Amplification Factor (WAF) in SSDs.
+
+
+As Yang et al. \cite{yang2014don} pointed out in their work, compound
+garbage collection problem becomes more serious when garbage
+collection unit of higher log system is smaller than the unit of lower
+log system. Section \ref{subsec:remove_gc_overhead} provides more
+detailed analysis of compound garbage collection scenario.
+
+
+\subsection{Case Study 3: Multi-threaded Sequential Update}
+\label{subsec:case_study_3}
+
+Compound garbage collection can be an issue even in multi-threaded
+sequential update workload. We add few more conditions on Case Study 2
+to describe Case Study 3. First, let us assume that $L1$ to $L3$ are
+part of file $A$ and $L4$ to $L6$ is part of file $B$ in
+Fig. \ref{fig:comp_gc_1}(a). Second, there are two threads trying to
+sequentially update file A and file B simultaneously, and each thread
+updates data in order of increasing LBA numbers. In such scenario,
+after each thread updates $L1$ and $L3$, filesystem have to trigger
+segment cleaning process. Then, it follows the same steps as the Case
+Study 2.
+
+Although threads in an application is sending requests in sequential
+manner, the workload they generate is random in the filesystem
+perspective view. Thus, the case where several threads trying to
+sequentially update different files are no different from the Case
+Study 2. Detailed analysis of multi-threaded sequential write scenario
+is described in Section \ref{subsec:remove_gc_overhead}.
+
+
+\section{Unified Storage Layer}
+\label{sec:USL}
+
+In this paper, we propose Unified Storage Layer (USL), which has two
+major goals. First goal is to reduce the DRAM requirements for large
+scale SSDs by minimizing the size of metadata without loss of the
+performance. Second goal is to resolve compound garbage collection
+problem which arises in layered log-structured system. In order to
+meet the goals, Unified Storage Layer distinguishes two LBA regions on
+filesystem layer depending on I/O characteristics of the
+filesystem. On one of the regions filesystem has control over when to
+perform garbage collection for both filesystem and SSD. Thus SSD does
+not have to garbage collect on its own and also does not need to
+manage mapping table.
+
+
+\subsection{Design}
+\label{subsec:design}
+
+USL takes advantage of recent log filesystem called F2FS
+\cite{lee2015f2fs} to both alleviate the heavy memory usage of page
+mapping and increase the storage performance. As described in
+Fig. \ref{fig:f2fs_partition}, there are two regions in F2FS
+partition. And, each area exhibits different write patterns. Since
+metadata area handles all writes in in-place update manner, the region
+show random write pattern. On the other hand, data and node in main
+area is written in log-structured style which shows sequential write
+pattern.
+
+Note that F2FS is flash friendly filesystem and tries to reduce
+storage I/O overhead by sending large units of data. For example, unit
+of segment cleaning for main area is a section which is 2 Mbyte in
+size. The main area does not perform in-place update unless it is
+necessary. The size of metadata and main areas are determined by the
+size of the partition, the size cannot be altered after formatting a
+partition.
+
+After reviewing the filesystem features and the I/O characteristics of
+each area, we came up with an idea to solve the layered garbage
+collections on log system. The crux of Unified Storage Layer is to
+manage LBAs with disaggregate mapping, which is a mapping specifically
+tailored to accommodate two different I/O pattern. In disaggregate
+mapping, which is shown in Fig \ref{fig:da_mapping_layout}, metadata
+area is managed in page mapping and LBAs in main area are one-to-one
+mapped with PBAs in SSD. Note that in order for USL to exploit
+disaggregate mapping scheme, filesystem has to know the page and block
+size of the SSD in use and SSD has to know the layout of the
+filesystem in USL. The negotiation takes in place when the file system
+is first formatted on the storage device.
+
+\begin{comment}
+  %% move to subsubsection 'Filesystem Formatting Tools'
+  The session is completed in
+  three steps: (i) Upon initiation of filesystem format, USL device
+  acknowledges with its page, erase unit, and storage capacity to the
+  filesystem, (ii) the filesystem sets the size of a section, creates
+  metadata and main area, and returns the area information to USL
+  storage device, and (iii) the storage device initializes metadata area
+  with page mapping table and let main area be managed by the
+  filesystem. 
+\end{comment}
+
+
+In other words, main area of an SSD does not have a
+mapping table information, and $LBA_i$, is directly mapped with
+corresponding PBAs, $PBA_j$, in the SSD, where $i=\{1, \ldots, n\}$ and
+$j=\{1, \ldots, n\}$.  Note that each section in main area is matched with a
+block in the SSD. Thus, the update in a section is applied to the
+corresponding block in the SSD. By mapping sections to physical
+blocks, that is $section_l \big|_{l=0, \ldots, n} = block_{m+1}
+\big|_{m=1, \ldots, n}$, the FTL does not need to hold mapping table
+for the main area. Thus, the memory overhead of managing mapping table
+can be removed and USL avoids compound garbage collection
+problem. There are two layers in USL, that is filesystem and Unified
+Flash storage layer, and the following sections describes each layer
+in more detail.
+
+
+\begin{figure}[th]
+\begin{center}
+\includegraphics[width=3in]{./figure/usl_layout}
+\caption{Disaggregate Mapping Layout}
+\label{fig:da_mapping_layout}
+\vspace{-2em}
+\end{center}
+\end{figure}
+
+
+
+\subsection{Filesystem Layer}
+\label{subsec:fs_layer}
+
+The filesystem layer in USL plays two important roles. First, it has
+to persistently store the user data in the storage device. Second, it
+has to handle garbage collection on main area and send set of empty
+section numbers acquired from segment cleaning process to USL
+storage. Upon receiving the section numbers the device makes the
+corresponding NAND blocks as empty blocks. Therefore, there is no need
+to garbage collect the NAND blocks belonging to main area but to erase
+the target blocks that the filesystem requested.
+
+We modified four parts of F2FS to meet the requirements of USL
+filesystem. First, we modified write policy of the filesystem and
+second, we introduce patch manager to avoid partial writes. Third, we
+modified filesystem formatting tool, and finally, we added a mechanism
+to transfer section numbers reclaimed by segment cleaning to USL
+storage device.
+
+\subsubsection{Sequential Write only Implementation}
+
+Although F2FS is known as log-structured, strictly speaking it is more
+like hybrid version of log-structured and in-place update
+filesystem. When there is enough space in the partition, F2FS appends
+all the writes; however, when the available space goes under certain
+threshold, F2FS uses Slack Space Recycling (SSR), which in-place
+updates a new data on invalided blocks on the filesystem. F2FS
+exploits SSR to delay segment cleaning from happening and also reduces
+WAF in filesystem layer. However, SSR in F2FS means in-place update
+with random write on sections in main area. Since sections in main
+area of USL filesystem is directly mapped with NAND blocks, SSR
+feature of the F2FS forces the filesystem to randomly update data
+which then is problem for SSDs. Note that some of the
+writes on a SSD block cannot be written because of NAND program
+protocol and have to go through very slow erase and in-place-update
+the existing pages. In order to guarantee that writes to main area are
+with only sequential writes, we disabled the use of SSR in USL filesystem.
+
+\begin{figure}[h]
+\begin{center}
+\includegraphics[width=3in]{./figure/patch_manager_ex}
+\caption{Two-page Write Behavior with and without Patch Manager}
+\label{fig:patch_manager_ex}
+\end{center}
+\vspace{-1em}
+\end{figure}
+
+\subsubsection{SSD page size aligned write implementation: Patch Manager}
+
+When SSDs receive a write request that is smaller than the page size
+of the SSD, the device writes the data using partial write on a page
+which wastes the rest of the page. Note that unit size of F2FS is
+4Kbyte, whereas the size of SSDs varies from 4 Kbyte, 8 Kbyte, and to
+16 Kbyte, depending on manufacturers. If the unit size of write in
+filesystem and SSD is not aligned to each other, there is no other way
+but to use partial write on SSD. 
+
+Fig \ref{fig:patch_manager_ex}(a) illustrates an issue in F2FS, where
+SSD uses 8 Kbyte as page size. In the configuration in
+Fig. \ref{fig:patch_manager_ex}, F2FS allocates a LBA on every 4Kbyte,
+and a SSD block is composed of four 8Kbyte pages. Each page is
+numbered and also has a flag to indicate validity of corresponding
+page. Upon receive a write request for LBA 0 from the filesystem, the
+SSD programs it on page 0. Since the page is larger than the size of
+request, the SSD partially programs the page with the request and the
+rest of 4Kbyte in the page is left empty.
+
+Let’s assume that after sometime, the filesystem sends another
+request to write LBA 1. Since a page is 8 Kbyte, LBA 1 can be stored
+in page 0 right next to LBA 0; however, due to NAND characteristics
+LBA 1 cannot be update in page 0. If SSD were to write both LBAs in
+one page, then LBA 0 in page 0 has to be internally copied to the
+buffer and programmed in page 1 with LBA 1. 
+
+As we have mentioned earlier, the main area of the filesystem in USL
+does not keep a mapping table and each LBA is directly mapped with
+PBA; thus, USL requires a mechanism to workaround the misaligned write
+requests. Note that every LBAs have its designated location in the USL
+storage. For example, LBA 0 and LBA 1 can only be stored in page 0.
+In order to address the side effect of removing the mapping
+information in a storage device, we introduce Patch Manager in USL
+filesystem layer to mandate each write requests be aligned with the
+page size of the storage. 
+
+The role of patch manager is to forbid write requests that are not
+aligned to the page size of a storage in USL and prevent it from partial
+writes. Fig. \ref{fig:patch_manager} illustrates patch manager in the
+I/O hierarchy. The main role of patch manager is to align the size of
+all requests from the filesystem to the page size of the storage.
+Before sending write request to the storage, the patch manager checks
+whether the request is aligned with the page. If it is aligned, then 
+the write request is simply transferred to the storage; and, if it is not 
+aligned with the page size, then patch manager allocates an empty page
+from page cache and concatenates it with original write request.
+
+\begin{comment}
+  USL filesystem manipulates bio structure to form a request for the
+  storage. But, before sending it to the storage, the filesystem sends
+  it to patch manager to check whether the request is aligned with the
+  page. If it is aligned, then it simply returns bio structure; and, if
+  it is not aligned with the page size, then patch manager adds a dummy
+  page and makes the length of the request aligned with the page size.
+\end{comment}
+
+\begin{figure}[t]
+\begin{center}
+\includegraphics[width=3in]{./figure/patch_manager}
+\caption{Block Patch Manager}
+\label{fig:patch_manager}
+\vspace{-1.5em}
+\end{center}
+\end{figure}
+
+Fig. \ref{fig:patch_manager_ex}(b) shows how patch manager works in
+USL. Upon receiving a write request for LBA 0, patch manager detects
+that the request is not aligned to 8Kbyte, thus patch manager adds
+dummy 4Kbyte page along with LBA 0 and sends down to storage in USL. The
+storage device assigns LBA 1 as the dummy data and programs all the
+data on page 0. After some time, when the filesystem receives actual
+write for LBA 1, USL filesystem assigns it to next logically
+consecutive address, which is LBA 2. Since the request for LBA2 is
+also not aligned, patch manager also adds dummy page to the request
+and writes the request in page 1. Since a dummy page does not contain
+any useful data, we mark it as invalid to let segment cleaning reclaim
+the page.
+
+With the help of patch manager, USL achieves the goal of mapping each
+LBA to PBA in storage systems. However, one may point out a problem of
+increased WAF in filesystem layer because of the additional of dummy
+page. Our experiment shows that patch manager added only handful of
+dummy pages. It is because most of writes in filesystem were in
+multiples of page size.
+
+\subsubsection{Filesystem Formatting Tools}
+
+\begin{figure*}[t]
+\centering
+ \subfigure[Ext4 with Page mapping SSD]{
+ \includegraphics[width=2in]{./figure/ext4_arch}
+ \label{fig:ext4_layout}
+ }
+ \subfigure[F2FS with Page mapping SSD]{
+ \includegraphics[width=2in]{./figure/f2fs_arch}
+ \label{fig:f2fs_layout}
+ }
+ \subfigure[Unified Storage Layer]{
+ \includegraphics[width=1.92in]{./figure/usl_architecture}
+ \label{fig:usl_layout}
+ }
+\caption{System Layout for Different Filesystems and SSD Mapping
+  Scheme}
+\vspace{-0.5em}
+\label{fig:system_layout}
+\end{figure*}
+
+In Section \ref{subsec:design}, we described that layers in USL needs
+to go through a negotiation phase to inform capacity, the size of
+page, and erase unit of the storage to the filesystem and to define
+the regions for metadata and main area of the filesystem on the
+storage. The session is completed in three steps: (i) Upon initiation 
+of filesystem format, USL device acknowledges with its page, erase unit, 
+and storage capacity to the filesystem, (ii) the filesystem sets the 
+size of a section, creates metadata and main area, and returns the area 
+information to USL storage device, and (iii) the storage device 
+initializes metadata area with page mapping table and let main area be 
+managed by the filesystem. 
+
+We modified f2fs-tools \cite{f2fs_tools} to acquire the
+information and exploit them in USL, and added fields to store erase
+unit and the size of the page of the storage in f2fs-tools.
+
+\begin{comment}
+  Theses information is transferred to each other at filesystem
+  format time.   
+  The size of metadata in USL filesystem depends on the capacity of the
+  storage. As soon as the capacity is made known to the filesystem,
+  it creates a filesystem partition and passes down the region for
+  metadata and main area to the storage
+
+  In the metadata area, F2FS keeps superblock which holds filesystem
+  partition information,
+  checkpoint for filesystem recovery, segment information table that
+  records validity and other information about segments, and node
+  address table that keeps account of file related metadata. 
+  After formatting, USL filesystem has segment cleaning unit aligned with
+  garbage collection unit of the storage, and patch manager can send
+  page aligned write requests to the storage.
+\end{comment}
+
+\subsubsection{Transferring Garbage Collection Information}
+\label{subsub:transfer_sec_num}
+
+Finally, USL requires a means to transfer the acquired set of section
+numbers from filesystem segment cleaning process to the storage
+device. Since all PBAs are matched to LBAs of main area of USL
+filesystem, the storage device does not perform garbage collection on
+those blocks; instead, the filesystem performs segment cleaning and
+sends the section numbers needs to be erased to the storage. The
+technique to send section numbers is described in Section
+\ref{subsec:flash_storage}.
+
+
+\subsection{Unified Flash Storage}
+\label{subsec:flash_storage}
+
+Unlike SSDs with page mapping or other hybrid mapping schemes, USL
+storage device does not keep a mapping information for main area
+of USL filesystem. Unified Flash Storage is defined as the storage in
+USL which uses disaggregate mapping scheme.  There are at least two
+significant benefit of using disaggregate mapping. First, it has very
+low memory footprint. Second, it removes the overhead of garbage
+collection in main area of storage in USL, which enables USL to avoid
+compound garbage collection problem.
+
+\begin{comment}
+  It is combination of page mapping for metadata area and no mapping
+  scheme for main area of USL filesystem. By making the size of
+  section in filesystem same as the size of NAND block in SSD and each
+  section be one-to-one linked to a physical NAND block, it is able to
+  eliminate the use of mapping schemes.
+\end{comment}
+
+As described in section \ref{subsec:fs_layer}, filesystem
+$section_l\big|_{l=1, \ldots, n}$ is fixed to SSD
+$block_{m+1}\big|_{m=1, \ldots, n}$. SSD Firmware makes decision over
+received LBAs. If they are for metadata area, the firmware directs
+them to page mapping managed region of the device; if LBAs within the
+range of main area is received, the firmware recognizes the LBA as
+PBA, and programs to respective block. 
+
+%When the firmware receives LBA
+%larger than system partition, it computes to find block number to
+%erase instead of garbage collecting the storage device.
+
+
+% and filesystem and SSD uses same unit from write data called a
+% page. Note that filesystem uses 4Kbyte page and SSD uses 8Kbyte page
+% in Unified Storage Layer. To prevent the orders of LBAs within the
+% block from changing, especially when the size of physical page is
+% larger than the size of LBA, we use Patch Manager to fill in dummy
+% data.
+
+%By matching sections to blocks and using patch manager, we are able to
+%eliminate garbage collection overhead in a SSD, at least for the main
+%are of the filesystem. 
+
+Upon receiving section numbers from the
+filesystem via write system call, the storage device needs to just
+erase blocks. We used SATA command extension to distinguish ordinary write calls
+from sending section numbers. When SSD receives the SATA command
+extension, the firmware of SSD recognizes the write call as a mean to
+inform section numbers to erase. The storage system simply erases
+blocks upon receiving the section numbers.
+
+Fig. \ref{fig:system_layout} compares different system layout
+including in-place update filesystem (Ext4), log-structured filesystem
+(F2FS), and USL. Fig. \ref{fig:ext4_layout} illustrates a
+configuration with Ext4 filesystem, which partitions metadata and data
+blocks, and each data block has default size of 4 Kbyte. F2FS and USL
+shown in Fig. \ref{fig:f2fs_layout} and Fig. \ref{fig:usl_layout},
+respectively, manages filesystem partition with segments.
+
+As we have explained in Section \ref{subsec:measuring_waf}, WAF for 
+Ext4 is bounded by $WAF_{SSD}$. And since Ext4 is in-place update in 
+nature, it works best when SSD uses page mapping. Since both layers 
+of F2FS with page mapping SSD suffers from garbage collection, the 
+WAF is bounded by $WAF_{fs}$$\times$$WAF_{SSD}$, and it leads to 
+compound garbage collection problem. On the contrary, WAF of USL 
+can be denoted as $WAF_{fs}$ because filesystem in USL manages the 
+garbage collection behavior of the storage, and it also implies that 
+USL do not suffer from the overhead of compound garbage collection. 
+Additional benefit of using USL is that SSD does not need to maintain 
+a mapping table for main area, which significantly reduced the size 
+of mapping table.
+
+\begin{comment}
+  In F2FS, the default section size is
+  2 Mbyte which is same as the size of a segment. USL, on the contrary,
+  uses 256 Mbyte as section size to match the erase unit of Unified
+  Flash Storage. All three filesystems translates file offsets into
+  logical addresses to access the filesystem partition; Ext4 makes use
+  of inode data structure, and F2FS and USL makes use of node data
+  structure. I/O requests from each filesystem delivers logical
+  addresses to underlying storage, and the address is translated to
+  physical addresses by FTL. Using the physical addresses, FTL sends
+  program requests to NAND flash controller. 
+
+  Analyzing WAF of a system allows us to have some idea on the
+  performance of the system. As we have explained in Section
+  \ref{subsec:measuring_waf}, WAF for Ext4 is bounded by $WAF_{SSD}$ and
+  for F2FS is bounded by $WAF_{fs}$$\times$$WAF_{SSD}$. On the contrary,
+  WAF of USL is bounded by $WAF_{fs}$ for two reasons. First, the size
+  of filesystem metadata is very small compared to the filesystem
+  partition---only 1 Gbyte out of 256 Gbyte capacity is allocated as
+  metadata area in USL. Second, over-provisioning area available in an SSD
+  is large enough to cover all the updates in metadata area. 
+\end{comment}
+
+\begin{comment}
+\section{Write Amplification Analytic Model}
+\label{sec:WA_model}
+
+
+%5장의 존재 의미
+Write amplification (WA) measures the the number of user page writes
+against actual number of page writes. Since SSDs are out-of-place
+update device, WA can describe the performance of the
+device. Through modeling of WA of SSDs, we try to understand the
+theoretical performance of the device and use it to analyze the
+bottleneck in the system. 
+
+
+%기존의 WAF analytic model
+There are number of works in the field to provide analytical model of
+SSD write amplification \cite{Hu:2010:RZ3771,
+  Hu:2009:WAA:1534530.1534544, Agarwal5700261, Luojie6167472,
+  Desnoyers:2012:AMS:2367589.2367603, VanHoudt2013}. Hu et
+al. \cite{Hu:2010:RZ3771} used the coupon collector's problem to model
+random write behavior of SSDs and to derive write
+amplification. Agarwal et al. \cite{Agarwal5700261} derived a model
+based on the assumption that uniform number of invalid pages are in
+all of the blocks if random workload is uniformly distributed across
+the device. Luojie \cite{Luojie6167472} made elaborations to the work
+of Agarwal et al. \cite{Agarwal5700261}, and found the probability of
+page invalidation and used it to find the number of invalid pages in a
+block. Desnoyers \cite{Desnoyers:2012:AMS:2367589.2367603} improved
+the model using Markov chain and Van Houdt used mean field model to
+add accuracy in modeling the WAF. 
+
+
+%사용한 모델, 가정한 내용
+In this paper, we used a model proposed by Desnoyers
+\cite{Desnoyers:2012:AMS:2367589.2367603} to derive the WAF of given
+systems, and also used uniformly distributed traffic and greedy
+cleaning model which best describes our experiment environment. Note
+that provided modeling disregards the effect of wear-leveling and
+interaction between channels and ways of a SSD. The unit of write in
+this model is a page. Taking account of provided assumptions, the
+write amplification can be formulated as
+Eq. (\ref{analy_grd_unif_wa}), where $n_p$ denotes number of pages per
+block and $X_0$ is defined as Eq. (\ref{analy_grd_unif_X0_rho}). 
+
+
+%수식 작성 및 인자설명
+\begin{equation}
+\label{analy_grd_unif_wa}
+A=\frac{n_p}{n_p-(X_0-1)}
+\end{equation}
+
+
+%alpha
+%\begin{equation}
+%\label{analy_grd_unif_X0}
+%X_0=\frac{1}{2}-\frac{n_p}{\alpha}\mbox{W}\left( -(1+\frac{1}{2n_p})\alpha e^{-(1+\frac{1}{2n_p})\alpha}\right)
+%\end{equation}
+
+%rho
+\begin{equation}
+\label{analy_grd_unif_X0_rho}
+X_0=\frac{1}{2}-\frac{n_p}{\rho+1}\mbox{W}\left( -(1+\frac{1}{2n_p})(\rho+1)e^{-(1+\frac{1}{2n_p})(\rho+1)}\right)
+\end{equation}
+
+$\mbox{W}()$ in Eq. (\ref{analy_grd_unif_X0_rho}) describes Lambert W
+function, which is commonly understood as the inverse function of
+$f(x) = x e^{x}$ and used to find solutions to transcendental
+equations \cite{Corless:BF02124750}. Over-provisioning factor of the
+device is denoted by $\rho$, which describes the relationship between
+the number of physical blocks, $T$, and number of user blocks, $U$,
+that is $\rho=\frac{T-U}{U}$. 
+
+\end{comment}
+
+\vspace{-0.5em}
+\section{Experiment}
+
+In this section, we compare the size of the mapping tables of different FTL schemes and we
+show that disaggregate mapping in USL reduces the size of the mapping
+table significantly. We also analyze the compound garbage collection
+issue discussed in Section \ref{sec:CompoundGC}, and show that USL
+can be a solution to the problem.
+
+\subsection{Experiment Setup}
+\label{subsec:exp_setup}
+
+\begin{comment}
+  \begin{table}[h]
+  \begin{center}
+  \begin{tabular}{|c|c|c|c|} \hline
+  		& F2FS	& Ext4	& USL 		\\ \hline\hline
+  Filesystem	& F2FS	& Ext4	& Unified FS	\\ \hline
+  SSD Mapping	& Page	& Page	& Disaggregate	\\ \hline
+  \end{tabular}
+  \end{center}
+  \caption{System Information (Filesystem and SSD Mapping Scheme)}
+  \label{tab:system_info}
+  \end{table}
+\end{comment}
+
+We compare the performance of USL with base F2FS and in-place update
+filesystem, Ext4, on Linux Kernel 3.18.1. USL uses disaggregate
+mapping, and base F2FS and Ext4 uses page mapping SSD. 
+We used
+Samsung SSD 843Tn\cite{ssd843tn} for the experiment, and modified its
+firmware to implement USL. Table \ref{tab:ssd_info} shows
+specification and performance of SSD 843Tn used in the performance
+evaluations. The total available capacity of the SSD is 256 Gbyte with
+23.4 Gbyte over-provisioning area and with 8 Kbyte page. The SSD performs
+garbage collection in units of superblock with size of 256 Mbyte where
+superblock is group of Flash blocks with same way number in an array of
+flashes channel.
+
+% Table \ref{tab:system_info} summarizes the system information. 
+\begin{comment}
+  Since SSDs are sensitive to test environment, we create a precondition
+  prior to performing any experiments. Detailed steps in the preparation
+  is described in each experiments. 
+\end{comment}
+
+\begin{table}[t]
+\begin{center}
+\begin{tabular}{|c|r|r|} \hline
+\multicolumn{2}{|c|}{Specification }		\\ \hline\hline
+Capacity		& 256 Gbyte 		\\ \hline
+Over-provisioning	& 23.4 Gbyte		\\ \hline
+Page size		& 8 Kbyte		\\ \hline
+Block size		& 4 Mbyte		\\ \hline\hline
+\multicolumn{2}{|c|}{Performance }		\\ \hline\hline
+Sequential Write	& 360 Mbyte/sec 	\\ \hline
+Sequential Read	        & 530 Mbyte/sec 	\\ \hline
+Random Write		& 35 KIOPS		\\ \hline
+Random Read		& 89 KIOPS		\\ \hline
+\end{tabular}
+\end{center}
+\caption{Specification and Performance of Samsung SSD 843Tn
+  \cite{ssd843tn}. Random IOPS is measured in sustained environment,
+  and sequential bandwidth is measured in clean state.}
+\label{tab:ssd_info}
+\end{table}
+
+
+\subsection{The Size of Mapping Information}
+
+
+\begin{table}[t]
+\begin{center}
+  \begin{tabular}{|c|r|} \hline 
+                         & Mapping Size       \\ \hline\hline 
+Page mapping             & 256 Mbyte          \\ \hline 
+FSDV\cite{zhangremoving} & $\leq$  256 Mbyte  \\ \hline 
+Hybrid mapping (LAST \cite{last08}) & 4 Mbyte \\ \hline 
+Disaggregate Mapping     & 1 Mbyte            \\ \hline
+\end{tabular}
+\end{center}
+\caption{The Size of Mapping Table (256 Gbyte SSD)}
+\vspace{-0.5em}
+\label{tab:meta_size}
+\end{table}
+
+Table \ref{tab:meta_size} compares the size of mapping tables in
+different mapping schemes when SSD in Table \ref{tab:ssd_info} is used.
+Page mapping uses 256 Mbyte of memory when disaggregate mapping uses
+only 1Mbyte. Although page mapping has large memory footprint, its
+most valuable characteristics is that data can be placed in any
+available places in the storage. However, as the size of SSDs is
+increasing, merits in using page mapping is becoming less
+appealing. For example, for 1 Tbyte and 4 Tbyte SSD with 4 Kbyte as
+the page size, the memory space required to store the mapping table
+information is 1Gbyte and 4Gbyte, respectively.
+
+File System De-Virtualizer, FSDV \cite{zhangremoving}, makes
+filesystem point to a physical address in a SSD, and the pointed entry
+in the SSD is removed from the mapping table. Thus the size of the
+mapping table is dynamically resized. In the worst case scenario, it
+has to maintain 256 Mbyte of mapping table, just like the page mapping
+table. 
+
+\begin{comment}
+  다른 예로, VFSL(Virtualized Flash Storage Layer
+  \cite{josephson2010dfs})는 Logical to Physical 매핑 정보를 SSD의
+  FTL이 아닌, 호스트의 Device Driver 단에서 관리하는 기법이다. VFSL은
+  호스트에서 매핑 정보를 관리하므로, 호스트의 CPU, 메모리 자원을 활용할
+  수 있는 장점을 갖으나, 매핑 테이블 크기는 이득이 발생하지 않으므로,
+  여전히 큰 매핑 정보 관리 overhead가 발생한다. FSDV와 VFSL에 대한
+  자세한 설명은 \ref{related_works}에 기술되어 있다.
+\end{comment}
+
+Disaggregate mapping uses page mapping for the region allocated for
+metadata area of filesystem and keeps no mapping information for the
+main area. The memory footprint of USL is only 1 Mbyte which consumes
+about 256 times less than that of page mapping. Even if we add several
+other metadata used by USL, such as segment bitmap and buffered
+segment number, the size of total metadata is only 4.73 Mbyte, which
+is 54 times less than that of page mapping. Note that the size of
+mapping table without any other metadata in LAST FTL is 4 Mbyte.
+
+\begin{comment}
+  Since the size of metadata in disaggregate mapping does not change
+  once the partition size is fixed, it makes possible to store the
+  information in small DRAM memory.
+\end{comment}
+
+
+\subsection{IO Performance}
+\label{subsec:io_performance}
+
+In this section, we measure the performance of different systems where
+filesystem does not copy valid data through segment cleaning
+process. Fig. \ref{fig:benchtest} shows the performance of sequential
+write and random write on each layout. 
+
+\begin{figure}[t]
+\centering
+
+ \subfigure[Sequential Write]{
+ \includegraphics[angle=-90,width=1.65in]{./bench/seq_write}
+ \label{fig:benchtest_seqw}
+ }\hspace{-1.3em}
+ \subfigure[Random Write]{
+ \includegraphics[angle=-90,width=1.65in]{./bench/rand_write}
+ \label{fig:benchtest_randw}
+ }
+ \caption{Sequential / Random Write Performance, F2FS and Ext4 are on
+   Page mapping SSD (Workload is as follows. Sequential Write: 188
+   Gbyte File size, 512 Kbyte record size, 2.75 Tbyte Total write
+   volume / Random Write: 50 Gbyte File size, 4 Kbyte record size, 750
+   Gbyte Total write volume, Section size of F2FS: 256 Mbyte)}
+ \vspace{-0.5em}
+ \label{fig:benchtest}
+\end{figure}
+
+Note that Ext4 and F2FS are mounted on page mapping SSD and USL uses
+disaggregate mapping SSD with modified F2FS. Details of environment is
+described in Section \ref{subsec:exp_setup}. To measure the
+sequential write performance, we format the filesystem and created a
+file with size of 188 Gbyte. One iteration of an experiment issues 512
+Kbyte buffered sequential write until all LBAs are covered, and
+repeated the iteration for fifteen times.
+Fig. \ref{fig:benchtest_seqw} shows the average performance. The
+performance of F2FS and Ext4 is 471 Mbyte/sec and 477 Mbyte/sec,
+respectively. However, the performance of USL shows about 506
+Mbyte/sec which is about 6$\%$ higher than that of other
+filesystems. WAF of F2FS, Ext4, and USL is 1.003, 1.001, and 1003,
+respectively. It shows that garbage collection overhead in layered log
+system is almost negligible. Note that Ext4 has the lowest WAF, but is
+not the fastest; USL shows better performance because address
+translation overhead is removed in USL. 
+
+The performance gap between existing systems and USL stands out even
+more in random write workload, which is shown in
+Fig. \ref{fig:benchtest_randw}. To measure the random performance of
+the device, we format the device and create a 50 Gbyte sized file in
+the partition. An iteration of the experiment touches all the LBAs
+with 4Kbyte buffered random writes, and the graph shows average of
+fifteen iterations. The result shows that USL is about 13$\%$ faster
+than Ext4; IOPS of USL is 94.1 KIOPS and Ext4 is 83.2 KIOPS. On the
+other hand, IOPS of F2FS 46.6 KIOPS which is about 50$\%$ lower than
+that of USL. This is due to uncoordinated garbage collection in Section
+\ref{subsec:case_study_1}; our experiment shows that WAF of F2FS is
+1.04, which means there was almost no segment cleaning process during
+iterations, but device level WAF is measured as 2. Total WAF of USL,
+on the other hand, is measured as 1.1, which proves that USL resolved
+the uncoordinated garbage collection issue and successfully removed
+the need to copy valid pages unnecessarily.
+
+
+\begin{figure}[t]
+  \begin{center}
+  \includegraphics[width=3.3in]{./bench/mobibench_randw_iops.eps}
+  \caption{Mobibench 4 Kbyte Random Write Test (170 Gbyte Cold data,
+    20 Gbyte Hot data, Section size of F2FS: 256 Mbyte)}
+  \label{fig:mobibench_randw}
+  \vspace{-1.5em}
+  \end{center}
+\end{figure}
+
+Fig \ref{fig:mobibench_randw} shows average IOPS fifteen iterations of
+random write I/O generated by Mobibench benchmark tool
+\cite{jeong2013androstep}. After formatting the partition, we created
+a 170 Gbyte sized file as a cold data, and created another 20 Gbyte
+sized file as a hot data. An iteration of experiment writes 20 Gbyte
+file with 4 Kbyte buffered random write. This workload also shows no
+sign of garbage collection because free space available in the
+filesystem partition is larger than the hot data we used in the
+experiment. The result shows that IOPS of F2FS (80.5 KIOPS) and Ext4
+(81.0 KIOPS) is not much different from each other. On the other hand,
+USL is slightly faster than the other systems, it shows about 8$\%$
+higher random write IOPS (86.8 KIOPS).
+
+
+  
+\subsection{Removing the Garbage Collection Overhead}
+\label{subsec:remove_gc_overhead}
+
+Section \ref{sec:CompoundGC} described Case Studies where compound
+garbage collection becomes a problem. Based on the studies, we measure
+the performance of USL and compare it with F2FS. Note that compound
+garbage collection is a problem only exists in layered log
+system. And, to give a fair trial between the log-structured
+filesystems, we only compare the result of F2FS and USL. Precondition
+of experiments is as follows. We format the device and create a
+partition using available 256 Gbyte of space; Create 170 Gbyte
+file using sequential buffered write and flushed the dirty
+pages in page cache using fsync() system call. Single iteration of
+experiment writes 85 Gbyte of created file starting from 0 to 85 Gbyte
+LBAs of the file with 4 Kbyte buffered random write. We repeat the
+iteration fifteen times and measure the WAF and the performance of
+each iteration. The result shown at Fig. \ref{fig:f2fs_vs_usl} is
+the average of fifteen iterations.
+%Fig. \ref{fig:f2fs_vs_usl} shows the result.
+
+
+\begin{figure}[t]
+  \centering
+  \subfigure[WAF]{
+    \includegraphics[width=2in]{./comp_gc/f2fs_vs_usl_waf}
+   \label{fig:f2fs_vs_usl_waf}
+   }
+   \subfigure[IOPS]{
+   \includegraphics[width=1.1in]{./comp_gc/f2fs_vs_usl_iops}
+   \label{fig:f2fs_vs_usl_iops}
+   }
+   \caption{The Result of Compound Garbage Collection Scenario 2
+     (Section size of F2FS: 256 Mbyte)\label{fig:f2fs_vs_usl}}
+\vspace{-1.5em}
+\end{figure}
+
+\begin{comment}
+\begin{figure*}[t]
+\label{fig:170_85_randw}
+\centering
+
+\subfigure[Filesystem WAF]{
+ \includegraphics[width=3.3in]{./comp_gc/170_85_randw_fs}
+ \label{fig:170_85_randw_fs}
+ }
+\subfigure[Device WAF]{
+ \includegraphics[width=3.3in]{./comp_gc/170_85_randw_dev}
+ \label{fig:170_85_randw_dev}
+ }
+\subfigure[Total WAF]{
+ \includegraphics[width=3.3in]{./comp_gc/170_85_randw_total}
+ \label{fig:170_85_randw_total}
+ }
+ \subfigure[IOPS]{
+ \includegraphics[width=3.3in]{./comp_gc/170_85_randw_iops}
+ \label{fig:170_85_randw_iops}
+ }
+ \caption{The Result of Compound Garbage Collection in Case Study 2
+   (Section size of F2FS: 256 Mbyte)\label{fig:170_85_randw}}
+\end{figure*}
+\end{comment}
+
+Fig. \ref{fig:f2fs_vs_usl} shows the WAF observed on filesystem and device.
+% And the total WAF is product of filesystem WAF and device WAF.
+The result shows that using USL increases filesystem
+WAF by 38\% compared to that of F2FS with page mapping. On the other
+hand, the WAF of device shows that USL is 56\% better than existing F2FS.
+The total WAF shown in Fig. \ref{fig:f2fs_vs_usl} illustrates the WAF of USL is
+39.3$\%$ lower than that of F2FS. Fig. \ref{fig:f2fs_vs_usl_iops}
+shows IOPS of each configuration. As a result of keeping the overall
+WAF low, USL achieved about 77.8\% better IOPS than F2FS. 
+
+Fig. \ref{fig:io_distribution} illustrates the write volume generated
+for user data, filesystem segment cleaning, and device garbage
+collection. An iteration of random write with F2FS generated total of
+215 Gbyte of write requests to storage, but USL generated only 131
+Gbyte of write requests to storage, which is about 40$\%$ lower. It is
+important to note that the difference in volume of extra writes for
+garbage collection in each layer. Although segment cleaning in F2FS
+generated 10 Gbyte of volume, compound garbage collection forced to
+write 120 Gbyte more on the storage device. On the other hand, USL
+writes only 46 Gbyte more for segment cleaning process. The reason USL
+has larger volume in segment cleaning is that F2FS processed most of
+the writes with SSR--average of 80 Gbyte of volume is written using
+SSR. Although filesystem WAF of F2FS is about 30$\%$ lower than USL,
+the device WAF is about twice larger on the average.
+
+
+\begin{figure}[t]
+\label{fig:dist_quartile}
+\centering
+ \subfigure[Write Volume Distribution]{
+ \includegraphics[width=1.57in]{./comp_gc/io_distribution.eps}
+ \label{fig:io_distribution}
+ }
+ \subfigure[Write Latency Quartile Information (Log scale)]{
+ \includegraphics[width=1.43in]{./comp_gc/io_latency_candle.eps}
+ \label{fig:write_latency}
+ }
+ \caption{Write Volume Distribution and Write Latency Quartile
+   Information (15th Iteration, Section size of F2FS: 256Mbyte)}
+ \vspace{-1.5em}
+\end{figure}
+
+
+Fig. \ref{fig:write_latency} shows the quartile statistics of write
+system call latency with box and whiskers diagram. Average latency of
+USL is 15.7 $\mu$sec which is 44$\%$ shorter than that of F2FS. Max
+write latency of USL is also 400 msec faster than F2FS; the max latency of
+USL is 2.9 sec and F2FS is 3.3 sec.
+
+\begin{figure}[t]
+\begin{center}
+\includegraphics[width=3.2in]{./comp_gc/hot_ratio_iops.eps}
+\caption{Random Write Performance according to the Hot Data Ratio (The total size of cold data and hot data is 170 Gbyte, Section size of F2FS: 256 Mbyte))}
+\label{fig:hot_ratio_iops}
+\vspace{-1.5em}
+\end{center}
+\end{figure}
+
+Fig. \ref{fig:hot_ratio_iops} shows the result of 4 Kbyte buffered
+random writes on different systems while varying the size of hot data
+from 50$\%$ to 5$\%$ of 170 Gbyte in the filesystem partition. The rest
+of 170 Gbyte is filled with cold data. For example, when hot ratio is
+set to 40$\%$, the size of cold data is set to 60$\%$ and the size is
+68 Gbyte and 102 Gbyte, respectively. The result shows the average of
+fifteen iterations. 
+
+In all cases, USL outperforms the result of F2FS; USL is about 40$\%$
+faster than F2FS when the hot ratio is 50$\%$ and the difference
+closes in to 4$\%$ when the hot ratio becomes 5$\%$. It shows that the
+effect of compound garbage collection becomes less significant as the
+hot ratio becomes smaller. The performance of Ext4 is stable around 74
+KIOPS. The performance of USL becomes higher than Ext4 when the hot
+ratio is less than 35$\%$ and the gap widens as the ratio
+decreases. When the hot ratio set to 5$\%$, USL shows about 25$\%$
+higher IOPS than that of Ext4. Considering the report that the size
+of the hot data in the system is about 5 to 25 $\%$ of the workload
+\cite{park2011hot}, it is reasonable to say that the
+performance of USL is superior to other systems, especially when most
+of the partition is filled with cold data and only small amount of
+data is frequently accessed. Improving the performance when the hot ratio is
+higher than 35$\%$ is left as future work.   
+
+The experiments in this section can be summarized in two. First,
+compound garbage collection issue described in Section
+\ref{sec:CompoundGC} is real and may lead to poor performance. Second,
+proposed USL with disaggregate mapping allows not only reducing the
+device level garbage collection but also lowering the total WAF of the
+system.
+
+\subsection{Effect of Segment Cleaning Unit}
+
+\begin{figure}[t]
+\begin{center}
+\includegraphics[width=1.7in, angle=-90]{./comp_gc/segs_per_sec.eps}
+\caption{Random Write Performance According to the Number of Segments
+  per Section}
+\label{fig:segs_per_sec}
+\vspace{-1.5em}
+\end{center}
+\end{figure}
+
+Increase in WAF for compound garbage collection means one thing:
+misalignment of garbage collection unit between storage and
+filesystem. Fig. \ref{fig:segs_per_sec} shows the performance of F2FS
+while varying the size of section, which is the unit of segment
+cleaning in F2FS. For comparison, we used same condition and workload
+is used as Fig. \ref{fig:f2fs_vs_usl}. The size of section is
+increased from 2 Mbyte to 256 Mbyte in multiples of two. X-axis of the
+graph shows the size of section and used system. Y1-axis and Y2-axis
+shows IOPS and WAF of experiments, respectively. The result shows that
+as section size increases the performance also increases, and when the
+size of section matches the garbage collection unit of the storage
+device the performance is the highest. The performance of USL is about
+77.8$\%$ higher than F2FS because section size is one to one aligned
+with superblock of the storage device. 
+
+The result section size experiment conveys two things. First, it is
+important to match the garbage collection unit between filesystem and
+storage device to reduce the garbage collection overhead in layered
+log system. Second, it is also recommended to match the layout of the
+two log systems, that is to use one-to-one mapping between filesystem
+and storage device.
+
+\subsection{Multi-threaded Write}
+
+
+Fig. \ref{fig:50_50_seqw_waf} shows the Total WAF---filesystem WAF
+$\times$ device WAF---of F2FS and USL while processing multi-threaded
+sequential update workload, which is described in Section
+\ref{subsec:case_study_3}. After formatting the partition, we create
+fifty 3.8 Gbyte files sequentially. Then, created fifty threads to
+write 0 to 1 Gbyte range of each file with 256 Kbyte buffered
+sequential update operation, which is one iteration of the experiment.
+
+Fig. \ref{fig:50_50_seqw_waf} shows the WAF of seven runs. Except the
+first iteration, USL shows about 15$\%$ lower WAF compared to the
+system with base F2FS. It shows that WAF of F2FS is in between 1.5 to
+2. As we have discussed in Section \ref{subsec:case_study_3}, although
+each thread issues sequential write requests, the group behavior of
+multi-threaded I/O requests may increase the overal WAF of the
+system. In the case of USL, filesystem triggers number of segment
+cleaning jobs, but since there is no device level garbage collection,
+USL shows WAF of 1.3 to 1.4, overall USL shows about 26$\%$ lower WAF
+than that of F2FS. 
+
+In this section, we observed that layered log-structured system
+suffers from compound garbage collection and it also showed that
+without proper coordination between the two systems layered log system
+is bounded to have high write amplification. Unified Storage Layer is
+combination of efforts to reduce the size of mapping table using
+disaggregate mapping and resolve compound garbage collection by 
+delegating SSD level garbage collection to filesystem. And experiments 
+in this section shows that it successfully address the problem.
+
+\begin{comment}
+  match the garbage collection unit between
+  filesystem and storage device to resolve compound garbage
+  collection. And experiments in this section shows that it successfully
+  address the problem.
+\end{comment}
+
+\begin{figure}[t]
+\begin{center}
+\includegraphics[width=3.5in]{./comp_gc/50_50_seqw_total}
+\caption{The Result of Compound Garbage Collection Scenario 3 (Section
+  size of F2FS: 256 Mbyte)}
+\label{fig:50_50_seqw_waf}
+\vspace{-1.5em}
+\end{center}
+\end{figure}
+
+
+\section{Related Works}
+\label{related_works}
+
+Yang et al. \cite{yang2014don} illustrated the effect of stacking a
+log-structured layer on top of another log-structured layer, i.e.,
+using log-structured filesystem on top of SSD. They pointed out that
+although using log-structured filesystem provides benefit of increased
+write performance and also provides useful feature such as snapshot,
+garbage collection on each layer reduces the life of SSD. After
+log-on-log simulation based on F2FS, they showed that it is better to
+make keep the size of upper segment larger or equal to the size of
+lower segment and perform upper layer garbage collection before lower
+layer garbage collection yields better performance.
+
+Zhang et al. \cite{zhangremoving} introduced FSDV (File System
+De-Virtualizer) to reduce the memory overhead of managing mapping
+information on both filesystem and storage device. It is a user-level
+tool that becomes active when either the system becomes idle or system
+memory is depleted due to increase in mapping information. When FSDV
+is invoked, it first checks mapping information and makes filesystem
+to point the physical address and removes logical to physical address
+mapping information on SSD mapping table. Their approach reduced the device mapping
+information to about 75\% at best. However, the worst case scenario
+forces to store all the logical to physical mapping information. One
+of the downside of using FSDV is that the memory on the device cannot
+be smaller than the maximum size of the mapping table.
+
+Josephson et al. \cite{josephson2010dfs} introduced Direct File System
+(DFS) which tries to exploit the maximum performance of NAND Flash
+Memory. They pointed out that mix of various complex techniques such as
+block allocation policy, buffer cache, and crash recovery, made
+filesystem operations too complicated and hinders the performance of
+underlying storage. They implemented Virtualized Flash Storage Layer
+(VFSL) in device driver layer which replaces the role of block
+management and FTL. VFSL keeps mapping information between virtual
+address and physical address in Flash memory, and also takes care of
+garbage collection and wear leveling of the device. DFS is a
+filesystem that exploits VFSL to read and write the flash memory. VFSL
+is implemented for Fusion IO. The design of DFS is greatly simplified
+because VFSL manages block allocation and Inode management that used
+to be manipulated in filesystem. Note that VFSL takes responsible for
+all the operation. Thus, it does not suffer from compound garbage
+collection problem. Since VFSL manage virtual to physical address
+mapping information, it does not have much benefit over the size of
+mapping table.
+
+
+\section{Conclusion}
+
+In this paper, we proposed Unified Storage Layer (USL) to solve two
+problems: size of mapping table of SSD and compound garbage collection
+of layered log-structured systems. Mapping table in USL is managed
+with disaggregate mapping which keeps two areas for different
+purposes. Metadata area which is managed by page mapping is used for
+metadata area of filesystem and main area for user data is stored in
+no mapping zone of the storage. Instead of keeping a mapping table for
+main area, disaggregate mapping directly maps LBAs of filesystem to
+PBAs of storage device. The use of disaggregate mapping reduced the
+overall metadata size of SSD to 1/54 compared to the de facto page
+mapping scheme. Moreover, the static binding entirely eliminates the
+root cause of compound garbage collection since the segement cleaning
+of the log-structured filesystem directly consolidates the valid pages
+in the Flash storage. WAF of USL is reduced by 40$\%$ and IOPS
+increased about 77$\%$ against F2FS with a SSD. We believe that USL
+not only minimizes the DRAM requirement for large scale SSDs but also
+solves compound garbage collection in layered log-structured system,
+and it successfully increases the performance and life-time of the
+storage.
+
+
+\bibliographystyle{abbrvnat}
+\bibliography{ref}
+
+
+\end{document}

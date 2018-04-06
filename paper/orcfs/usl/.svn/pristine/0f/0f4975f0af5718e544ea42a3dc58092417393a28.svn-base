@@ -1,0 +1,2011 @@
+% TEMPLATE for Usenix papers, specifically to meet requirements of
+%  USENIX '05
+% originally a template for producing IEEE-format articles using LaTeX.
+%   written by Matthew Ward, CS Department, Worcester Polytechnic Institute.
+% adapted by David Beazley for his excellent SWIG paper in Proceedings,
+%   Tcl 96
+% turned into a smartass generic template by De Clarke, with thanks to
+%   both the above pioneers
+% use at your own risk.  Complaints to /dev/null.
+% make it two column with no page numbering, default is 10 point
+
+% Munged by Fred Douglis &lt;douglis@research.att.com&gt; 10/97 to separate
+% the .sty file from the LaTeX source template, so that people can
+% more easily include the .sty file into an existing document.  Also
+% changed to more closely follow the style guidelines as represented
+% by the Word sample file. 
+
+% Note that since 2010, USENIX does not require endnotes. If you want
+% foot of page notes, don't include the endnotes package in the 
+% usepackage command, below.
+
+% This version uses the latex2e styles, not the very ancient 2.09 stuff.
+%\documentclass[letterpaper,twocolumn,10pt]{article}
+%\usepackage{usenix,epsfig,endnotes}
+
+%\documentclass[preprint,nocopyrightspace]{sigplanconf-eurosys}
+%\documentclass[letterpaper,twocolumn,10pt]{article}
+
+%\documentclass[10pt,twocolumn,conference]{IEEEtran}
+
+\documentclass[pageno]{jpaper}
+\newcommand{\asplossubmissionnumber}{211}
+
+\usepackage[normalem]{ulem}
+\usepackage{epsfig,endnotes}
+\usepackage{kotex}
+\usepackage{subfig}
+\usepackage{comment}
+\PassOptionsToPackage{hyphens}{url}
+\usepackage[hyphens]{url}
+%\usepackage{authblk}
+\usepackage{hyperref}
+\hypersetup{hidelinks}
+%\hypersetup{colorlinks=false, citebordercolor={1 1 1}}
+\usepackage{multirow}
+\usepackage{amsmath}
+\usepackage{wasysym}
+\usepackage{color}
+\newenvironment{translatedtext}[2]
+   {{\bfseries \color{blue} #1} 
+    {\bfseries \color{red}  #2}}
+
+\usepackage{cleveref}
+\crefname{section}{§}{§§}
+\Crefname{section}{§}{§§}
+
+
+%\hyphenation{op-tical net-works semi-conduc-tor}
+
+\begin{document}
+
+%don't want date printed
+%\date{}
+
+%make title bold and 14 pt font (Latex default is non-bold, 16 pt)
+\title{OrcFS: Orchestrated File system for Flash Storage} 
+
+%\author[1]{Jinsoo Yoo}
+%\author[1]{Joontaek Oh}
+%\author[1]{Seongjin Lee}
+%\author[1]{Youjip Won}
+%\author[2]{Jin-Yong Ha}
+%\author[2]{Jongsung Lee}
+%\author[2]{Junseok Shim}
+%\affil[1]{Hanyang University}
+%\affil[ ]{\{jedisty$|$na94jun$|$insight$|$yjwon\}@hanyang.ac.kr}
+%\affil[2]{Samsung Electronics}
+%\affil[ ]{\{jy200.ha$|$js0007.lee$|$junseok.shim\}@samsung.com}
+
+\date{}
+\maketitle
+\thispagestyle{empty}
+
+% Use the following at camera-ready time to suppress page numbers.
+% Comment it out when you first submit the paper for review.
+%\thispagestyle{empty}
+
+\begin{abstract}
+In this work, we develop \emph{OrcFS}, which
+vertically integrates the log-structured file system and 
+the Flash-based storage device. \emph{OrcFS} effectively addresses
+three technical issues which the modern Flash-based storage stack which
+consists of the log-structured file system and the Flash Storage
+suffers from (i) Compound Garbage 
+Collection, (ii) Mapping Table Overhead, and (iii) Waste of
+Overprovisioning area.
+In OrcFS, the log-structured file system and an SSD are tightly
+integrated with each other eliminating all the redundancies between the
+layers. 
+The file system is responsible for address mapping and segment cleaning
+while the SSD is responsible for bad block management. The file system
+section size is aligned with the superblock size of an SSD so that
+segment cleaning activity of the file system effectively consolidates the
+valid blocks in the underlying SSD eliminating the need for an SSD to
+run its own garbage collection. We develop Disaggregate Mapping,
+Block Patching and Quasi-preemptive segment cleaning so that the
+log-structured file system is seamlessly integrated with the Flash-based
+storage. 
+The contribution of OrcFS can be summarized as follows. OrcFS (i) removes 
+the root cause for compound garbage collection, (ii)
+reduces the mapping table size to 1/54 which eliminates the need for
+nearly all DRAM from SSD and (iii) removes the overprovisioning area
+from the SSD. 
+We prototyped  OrcFS using F2FS and commodity SSD, Samsung 843Tn with
+modified firmware. OrcFS reduces the write amplification by 26$\%$ and
+increases random write IOPS by 45$\%$. 
+
+\end{abstract}
+
+\begin{comment}
+In this work, we develop a new IO stack, \emph{OrcFS}, which vertically integrates the log-structured file system and
+the Flash-based storage device. The file system and Flash-based storage
+have evolved in their own way to optimize itself against the other.
+The Flash storage adopts sophisticated software layer called Flash
+translation layer to hide its append-only nature from the in-place
+update based file system. The log-structured file system has been
+proposed to relieve a Flash storage from expensive address translation
+and the garbage collection overhead via maintaining the file system
+blocks in append-only manner. Despite their elegance, when they are
+combined, the IO stack becomes subject to unacceptable performance
+deficiency primarily due to the redundant effort to make the room to
+accommodating the newly arriving data in both layers. We call this
+phenomenon as \emph{Compound Garbage Collection}.  OrcFS
+consists of three key technical ingredients: (i) superblock to
+segment static binding where the individual superblocks in SSD are
+statically bound to the individual system segments, (ii) Block
+Patching in the file system to align the IO size with the Flash page
+size, and (iii) Disaggregate Mapping which allows the Flash storage to
+maintain a subset of its Flash blocks by itself, not statically bound
+to the file system segment.  This static binding bears profound
+implications in IO stack design. First, the SSD can dispense with
+address translation layer since the file system in OrcFS maintains the
+mapping between the file system blocks to the physical Flash
+pages. Second, more importantly, the static binding entirely
+eliminates the root cause for compound garbage collection since the
+segment cleaning activity of the log-structured file system directly
+consolidates the valid Flash pages in the Flash storage.
+
+We implement a prototype OrcFS. We use F2FS (Flash
+Friendly File System) and Samsung 843Tn SSD as the baseline platform and
+modify each of them to form OrcFS. OrcFS reduces the SSD
+mapping table size by 1/54. OrcFS effectively eliminates the root cause
+for compound garbage collection. Subsequently, compared to F2FS over
+commodity Flash storage, the OrcFS reduces the write amplification by
+40$\%$ and increases random write performance by 77$\%$.
+\end{comment}
+
+
+\section{Introduction}
+
+There are a multitude of reasons for enterprise scale storage centers and cloud services making transitions from HDDs to SSDs \cite{enterpriseflash2015berry}, but in essence all of them can be boiled down to the capacity, the price, and the performance. There are 3D-Stacking technology \cite{3dnand_samsung} and advanced nano process technology \cite{davis2013flash} contributing to increase the capacity and as well as to decrease the price \cite{ssdprice}. However, as Ouyang et al. \cite{sdf} has showed the performance of SSD sees less than 50\% of the raw bandwidth of the SSD. 
+
+The FTL is the reason for the host experiencing limited performance. It is because the host recognizes the SSD as a block device and only the abstraction is visible to the system. Under the abstraction lies a special software for the SSD, called Flash Translation Layer (FTL), hiding all the physical complications of the device. For example, NAND Flash memory can not in-place update instead it has to erase-before-write, but FTL transforms its behavior to append-only style to enhance the performance via sophisticated mapping tables \cite{ban1995flash, kim2002space, fast07, last08, dftl09, kang2006superblock}. Since only the FTL knows internal layout such as channels/ways/planes structure of the device, it takes away the privilege of exploiting and optimizing its parallel structure by the host system.
+
+
+
+Another drawback of using FTL is that the two layers, that is the host and the FTL, perform redundant functions. Regardless of the effort of FTL to increase the I/O performance by writing in append-only style, many applicatoins endeavors to remove the overwrite operations in the SSD. For example, many applications and file systems endeavors to remove the overwrite operations in storage devices. There are databases exploiting LSM-tree (Log-structured Merge Tree) \cite{cassandraDB} and Log-structured file systems \cite{rosenblum1992design, lee2015f2fs, engel2005logfs, nilfs2006} using append-only or copy-on-write write policy. The approaches create redundant and overlapped operations that increases the overhead of metadata management and descrese the performance of the device \cite{yang2014don}.
+
+
+
+
+
+
+\begin{figure}[t]
+\begin{center}
+\includegraphics[width=3.6in]{./figure/dram_size.eps}
+\caption{DRAM size Trend in SSDs (From 2011 to 2015)}
+\label{fig:dram_size}
+\end{center}
+\end{figure}
+
+
+Furthermore, the FTL requires a lot of resources to fully utilize the device capability. One of such overhead is large mapping table information to translate logical address to physical address in memory. As the device is becoming larger in capacity, the size of mapping table is also increasing. 
+{\color{red}To grasp the trend of DRAM size in SSDs, We surveyed the SSDs manufactured by Samsung, Intel, OCZ, Plextor, RevuAhnTech, ADATA, Micron, and Crucial from 2011 to 2015. The total number of products we checked was 184. Fig \ref{fig:dram_size} shows the trend of DRAM sizes embedded in the SSDs. It shows that the size of DRAM increased considerably over the years, and about 60$\%$ of SSDs have 512 Mbyte and 1 Gbyte of DRAM. It shows that the memory footprint overhead is not to be taken lightly.}
+
+\begin{comment}
+Fig \ref{fig:dram_size} shows the trend of DRAM sizes from year 2011 to 2015. The list of the manufacturers included in this survey includes Samsung, Intel, OCZ, Plextor, RevuAhnTech, ADATA, Micron, Crucial, etc. It shows that the size of DRAM increased considerably over the years, and about 60$\%$ of SSDs have 512 Mbyte and 1 Gbyte of DRAM. It shows that the memory footprint overhead is not to be taken lightly. 
+\end{comment}
+
+
+
+There are at least two bifurcations of approaches in dealing with the overhead. Open Channel SSD \cite{openchannelssd} absorbed the role of the FTL into the host system. Note that it shares the same root as YAFFS\cite{manning2010yaffs}, JFFS\cite{woodhouse2001jffs}, and LogFS\cite{engel2005logfs}. However, the pitfalls in this approach is that the file system and the block I/O layer has to be modified. Another approach tries to limit the role of FTL and allow the host system to handle I/O operations efficiently. However, they provide only a partial solution to the problem for a specific server environments or key-value applications \cite{nvmkv, sdf}. Although the approaches minimizes the memory footprint \cite{zhangremoving} and optimizes the performance \cite{anvil}, all of them fail to provide the optimized solution that takes memory and the performance into account for a general system with SSDs.
+
+
+
+\begin{comment}
+YAFFS\cite{manning2010yaffs}, JFFS\cite{woodhouse2001jffs}, and LogFS\cite{engel2005logfs} used to be a solution for the raw NAND Flash devices that make host system responsible for managing various physical characteristics of the device. Recently introduced Open Channel SSD \cite{openchannelssd} follows the same path as the YAFFS, JFFS, and LogFS; however, what is different from the earlier attempts is that it takes account of not only physical geometry, such as page size, block size, number of channels, bad block information, etc, but also handles data placement, I/O scheduling, garbage collection, and wear-leveling. One of the pitfalls in this approach is that the kernel I/O stack, that is file system and the block I/O layer, has to be modified. 
+\end{comment}
+
+
+In this paper, we remove abstractions provided by FTL in the block device, and implement optimized storage system called OrcFS (Orchastrated File System) that integrates the functions of FTL into the host system. We modify the firmware of 843Tn SSD \cite{ssd843tn} and F2FS to implement OrcFS. The contributions of OrcFS are as follows.
+
+\begin{itemize} 
+\item {\bf Reduced Memory Overhead:} OrcFS keeps a large mapping unit yet without the concerns of block thrashing problem. It reduces the size of memory required to store metadata of an SSD by 1/54 of page mapping.
+
+\item {\bf Better Performance:} OrcFS enforces append-only write which guarantees that FTL need not perform in-place update operations. It exhibits 39$\%$ better performance than Ext4 file system. The write amplification in OrcFS is about 26$\%$ lower and IOPS is 45$\%$ higher compared to that of base F2FS in stacked log-structured system. 
+
+\item {\bf Solution to Compound Garbage Collection:} OrcFS resolves compound garbage collection issue inherent in stacked log-structured system. OrcFS sets the unit of segment cleaning same as the unit of garbage collection in the storage device. Since the units on both layers are the same, the storage simply can erase the blocks without any redundant copies and removes the redundant garbage collection overhead between host and the FTL. 
+\end{itemize}
+
+The rest of the paper is organized as follows. 
+\cref{sec:background} describes how log-structured file system and SSDs
+work, and issues stacked log system. \cref{subsec:stack_logs}
+defines the notion of compound garbage collection problem and provides
+an example to explain the problem. \cref{sec:OrcFS_design} and
+\cref{sec:OrcFS_implementation} describes design and
+implementation of OrcFS, respectively. 
+\cref{sec:experiment} shows the
+performance of OrcFS through various experiments and workloads. 
+\cref{sec:related_works} describes the related work and 
+\cref{sec:conclusion} concludes the paper.
+
+
+\section{Background}
+\label{sec:background}
+
+\paragraph{Flash-aware Filesystem:}
+In order to utilize the SSD to the highest degree, many file systems are adopting log-structured write manner \cite{manning2010yaffs, woodhouse2001jffs, lee2015f2fs, nilfs2006}. As a log-structured file system, they write in append-only style and perform segment cleaning to recalim space. Among the log-structured file systems, only Flash Friendly File System (F2FS) \cite{lee2015f2fs} has successfully reached the level of maturity and deployed as a commodity file system replacing Ext4 \cite{cao2007ext4} in mobile domain. The layout of F2FS is illustrated in Fig. \ref{fig:f2fs_partition}. F2FS divides the entire file system partition into two area, \emph{metadata} and \emph{data}, and manages them differently. Metadata area is updated in an in-place manner and the data area is updated in an out-of-place manner. However, Flash optimized file systems still operates on top of block device abstraction provided by the FTL, and thus, it cannot fully exploit the raw performance of the SSD \cite{sdf}.
+
+\begin{comment}
+플래시 스토리지의 성능을 최대한으로 활용하기 위해, 많은 파일시스템들이 Log-structured 방식의
+쓰기를 채택하고 있다 \cite{manning2010yaffs, woodhouse2001jffs, lee2015f2fs}. 
+이들은 append-only 쓰기를 통해
+데이터를 스토리지에 저장하고, Space reclaiming operation called segment cleaning을
+하는 등, FTL과 동일한 동작을 수행한다. Amongst these file systems, Flash
+Friendly File System(F2FS) \cite{lee2015f2fs} has successfully reached the level
+of sufficient maturity and have been deployed as a commodity file system
+replacing the commodity Ext4 \cite{cao2007ext4}. Fig. \ref{fig:f2fs_partition} 
+illustrates the layout of
+F2FS partitions. F2FS partitions the entire file system partition into
+two, \emph{metadata} area and \emph{data} area and  maintain them
+differently. Metadata area is updated in an in-place manner and the data
+area is updated in an out-of-place manner.
+그러나 flash-optimized fs 는 여전히 ftl을 통해 블록 디바이스로 추상화된 SSD에서 동작하므로 SSD 성능을 충분히 활용하지 못하는 문제를 갖는다 \cite{sdf}.
+\end{comment}
+
+\begin{figure}[t]
+\begin{center}
+\includegraphics[width=3.2in]{./figure/f2fs_layout}
+\caption{F2FS Partition Layout}
+\label{fig:f2fs_partition}
+\end{center}
+
+\end{figure}
+
+\paragraph{Flash Translation Layer:}
+FTL is a specialized software layer within the SSD that writes data in append-only style to hide erase-before-program characteristics of Flash memory from the host. Other important key roles of the FTL is mapping table management, garbage collection, wear-leveling, and IO paralellism. To fulfill its role, FTL demands a lot of hardware resources, especially DRAM requirement is increasing as shown in Fig. \ref{fig:dram_size}. 
+
+The FTL can simplify implementation and optimize its operations through cooperation with the host system. The examples are TRIM command \cite{shu2007data} and Multi-streamed SSD \cite{kang2014multi}. Flash optimized databases or file systems allows FTL to manage the SSD with very small mapping table. The researchers have made astute observation on such optimization points and tried to provide thinner abstractions and to design Flash memory aware operations to maximize the performance of the SSD \cite{cassandraDB, lee2015f2fs, lim2011silt}. However, since the FTL is oblivious of the optimizations made by the host system, the resources within the SSD cannot be minimized. FTL in OrcFS exploits functions provided by the host file system to optimize the mapping table management and garbage collection operation with the minimum use of hardware resources in managing the SSD.
+
+
+\begin{comment}
+Flash Translaction Layer (FTL)은 SSD의 소프트웨어 계층으로 Append-only 방식으로 
+데이터를 기록함으로써 플래시 메모리의 erase-before-program 특성을 호스트로부터 감춘다.
+이 외에도 가비지 컬렉션, Wear-Leveling, 입출력 병렬화 등 SSD의 성능을 결정짓는
+핵심적인 동작을 담당한다. FTL은 스토리지로부터 많은 하드웨어 자원을 요구하며, 
+가장 대표적인 예가 Fig. \ref{fig:dram_size}가 보여주는 SSD DRAM 요구량의 증가이다.
+
+FTL은 호스트 시스템과 협업함으로써 구현을 매우 단순화 하거나 동작을 최적화할
+기회를 얻는다. 대표적인 예로 TRIM command\cite{shu2007data}와 Multi-streamed SSD\cite{kang2014multi}가 있다.
+또한 플래시 스토리지에 최적화된 데이터베이스 또는 파일시스템의 사용은 FTL이 매우
+작은 매핑테이블을 사용하여 SSD를 관리할 수 있도록 한다. 이와 같이 호스트와 SSD간의
+Abstraction을 얇게하거나, Flash memory를 고려한 동작을 통해 SSD의 성능을 극대화 
+하려는 연구가 지속되고 있다. 그러나 호스트가 플래시 메모리에 특화된 입출력 스택을
+채택하고 있음을 FTL이 인지하고 있을 경우에만, SSD 내부 하드웨어 자원을 최소화 할 수 있다.
+OrcFS는 FTL이 호스트 파일시스템의 기능을 활용하여, 매핑테이블 관리, 가비지 컬렉션
+동작을 최적화하고, 적은 하드웨어 자원을 이용하여 SSD를 관리할 수 있도록 한다.
+\end{comment}
+
+\paragraph{Stacking the Logs:}
+\label{subsec:stack_logs}
+Counter intuitively, naive placement of Flash optimizied file system on top of the Flash storage device leads to increase in system complexity as well as to decrease the performance \cite{yang2014don}. As an example, Fig.~\ref{fig:layered_log_system} illustrates a log-structured file system over an SSD. There are three major redundancies in the system: (i) garbage collection, (ii) mapping information, and (iii) overprovisioning area. We define Compound Garbage collection as the phenomenon where the storage level log system performs garbage collection on data blocks which are already segment cleaned by a log-structured file system. The compound garbage collection increases write amplification, decreases the performance, and aggravates the life time of the storage device. OrcFS resolves the problems in functional duplicates between Flash optimized file system and FTL and also minimize the write amplification. 
+
+
+\begin{comment}
+
+Flash Optimized Filesystem을 단순히 플래시 스토리지 상에서 동작시키는 것은
+오히려 시스템의 복잡도를 증가시키고 성능의 하락을 유발할 수 있다 [Don't stack].
+Fig.~\ref{fig:layered_log_system}
+illustrates an example: a log-structured file system over an SSD.
+We can see there exist majorly
+three redundancies: (i) garbage collection, (ii) mapping information,
+and (iii) overprovisioning area.  
+Especially, We define Compound Garbage collection as the phenomenon 
+where the storage level log system performs garbage collection on 
+data blocks which are already segment cleaned by a log-structured 
+file system. Compound Garbage Collection 현상은 시스템의 Write Amplifcation을
+증가시키어, 성능 하락 및 플래시 메모리의 수명 악화의 문제를 야기한다.
+OrcFS는 이와 같이 Flash optimized Filesystem과 FTL 간에 기능 중첩으로
+발생하는 문제점들을 해결하고 시스템의 WA를 최소화 한다.
+
+\end{comment}
+
+
+
+\begin{figure}[t]
+\begin{center}
+\includegraphics[width=3in]{./figure/layered_log_system}
+\caption{Example of Stacking Log System}
+\label{fig:layered_log_system}
+\end{center}
+\end{figure}
+
+\begin{comment}
+  \subsection{Segment Cleaning in Log-structured File System}
+
+  Log-structured file system is write-optimized file system
+  \cite{rosenblum1992design}. The file system minimizes seek overhead by  
+  clustering the data block and the updated metadata block in proximity.
+  The file system is written in an append-only manner and all out-of-date
+  blocks are marked as invalid. The file system maintains in-memory
+  directory structure to locate the up-to-date version of individual file
+  system blocks. To minimize the disk traffic, the file system buffers
+  the updates and flushes them to disk as a single unit either when the
+  buffer is full or when \texttt{fsync()} is called.  The invalid file
+  system blocks need to be reclaimed to accommodate the newly incoming
+  writes. The process is called \emph{segment cleaning}. The segment
+  cleaning overhead is one of the main reasons which bar the wider
+  adoption of its technology since it makes the file system under
+  unexpected long delay\cite{seltzer1995file}.
+
+  Append-only nature of the log-structured file system is well aligned with
+  the update-only nature of the Flash device. A few log-structured
+  file systems have been proposed specifically for Flash storage
+  \cite{manning2010yaffs, woodhouse2001jffs, lee2015f2fs}. Amongst these file systems, only the Flash
+  Friendly File System(F2FS) \cite{lee2015f2fs} has successfully reached the level
+  of sufficient maturity and have been deployed as a commodity file system
+  replacing the commodity Ext4 \cite{cao2007ext4}. Let us briefly go into further
+  details for F2FS. Different from existing log-structured file systems,
+  F2FS provides elaborate categorization on segment types and maintains six
+  types of segment buffers to cluster the blocks with 
+  similar life time together. To reduce the garbage collection overhead,
+  it is important that the blocks in a segment bear similar
+  \texttt{hotness} \cite{rosenblum1992design, min2012sfs}.
+\end{comment}
+
+\begin{comment}
+  Subject to the hotness, F2FS provides three
+  levels of segment hotness: \emph{hot}, \emph{warm} and
+  \emph{cold}. The segments are categorized into two types subject to its
+  content: data vs.~directory. Combined together, F2FS defines six types
+  of segments.
+\end{comment}
+
+\begin{comment}
+  Fig. \ref{fig:f2fs_partition} illustrates the layout of
+  F2FS partitions. F2FS partitions the entire file system partition into
+  two, \emph{metadata} area and \emph{data} area and  maintain them
+  differently. Metadata area is updated in an in-place manner and the data
+  area is updated in an out-of-place manner. Flash device does not have seek
+  time overhead and, therefore, there is no need to cluster the metadata and
+  data block. Further, metadata blocks are updated much more frequently
+  than data blocks are updated. To properly accommodate the discrepancy in
+  access pattern, F2FS separates the region for metadata and data blocks.
+
+  F2FS allows separating the unit of write, \emph{segment}, and the unit
+  of erase, \emph{section}.  A section is a collection of consecutive
+  segments and by default the section size is one segment. This flexible
+  design allows F2FS to be well integrated with superblock based
+  SSD \cite{seong2010hydra}. F2FS adopts  greedy \cite{kawaguchi1995Flash} and cost
+  benefit \cite{rosenblum1992design} policy for foreground and background
+  cleaning, respectively.
+\end{comment}
+
+\begin{comment}
+  A log-structured file system is a append only system. All writes are
+  sequential which makes it ideal for SSDs. In log-structured
+  file system, an entire file system is divided with a unit called
+  segment, which is a set of consecutive file system blocks. Upon
+  receiving a write request, the log file system allocates a free segment
+  for data and use it to append more data until the segment is
+  full. Note that the size of segment varies, e.g., 8 Mbyte in NILFS2
+  \cite{nilfs_segment_size}, 512 Kbyte to 1 Mbyte in Sprite-LFS
+  \cite{rosenblum1992design}, and 2 Mbyte in F2FS
+  \cite{f2fs_segment_size}. Note that F2FS is a fairly young log
+  file system which targets to assimilate the characteristics of Flash
+  memory. Recent report on F2FS \cite{lee2015f2fs} shows that its
+  performance is about 3.1 times better than Ext4 \cite{cao2007ext4} on
+  some workloads.
+  % Jeong et al. \cite{jeong2013stack} showed that F2FS is also well suited for mobile workloads. 
+  Fig. \ref{fig:f2fs_partition} illustrates the layout of F2FS
+  file system partition. There are two areas in F2FS file system
+  partition: Metadata area, which keeps file system related metadata and
+  Main, which area keeps user generated data along with file related
+  metadata (node).
+\end{comment}
+
+
+\begin{comment}
+  \subsection{Garbage Collection in Flash Storage}
+
+  Garbage collection is a process of reclaiming invalid pages in the
+  Flash storage \cite{agrawal2008design}. Garbage collection not only interferes with the IO
+  requests from the host but also shortens the lifespan of the Flash
+  storage. A fair amount of garbage collection algorithms have been
+  proposed; Greedy \cite{kawaguchi1995Flash}, EF-Greedy \cite{kwon2007ef}, Cost benefit \cite{rosenblum1992design}, and etc.
+  Various techniques have been proposed to hide the garbage
+  collection overhead from the host. They include background garbage
+  collection \cite{smith2011garbage}, pre-emptive garbage collection \cite{lee2011semi}, and
+  etc. SSD controller allocates separate hardware thread for garbage
+  collection so that garbage collection does not interfere with IO request
+  from the host. Despite that numerous algorithms have been proposed since the
+  inception of the Flash storage, the garbage collection is still
+  problematic \cite{kim2016garbage, zheng2015optimize, huang2015garbage, yang2015optimality, hahn2015collect}.  
+
+  Garbage collection in Flash storage and the segment cleaning in
+  log-structured file system are essentially identical: consolidate the
+  valid blocks and reclaim the invalid blocks.
+\end{comment}
+
+\begin{comment}
+  \begin{figure}[t]
+    \begin{center}
+      \includegraphics[width=3.2in]{./figure/ssd_internal.eps}
+      \caption{Block Diagram of an SSD}
+      \label{fig:ssd_internal}
+    \end{center}
+  \end{figure}
+\end{comment}
+
+\begin{comment}
+  In multi-channel/multi-way architecture, SSD controller can perform
+  garbage collection in per-channel basis. When Flash memories in a channel are busy
+  with handling garbage collection process, the other channel can handle
+  the I/O requests. 
+\end{comment}
+
+\begin{comment}
+\subsection{Log-structured File System and SSD}
+
+  Originally, log-structured file system came out to improve the random
+  write performance of slow HDDs. Even though the idea of exploiting
+  sequential performance of the device captured many researchers
+  attention, but the fact that there is the overhead of garbage
+  collection made many hesitant in adopt it in a running system.
+
+  Behind the scene, FTL manages mapping between logical to physical addresses and takes care
+  of out-of-place updates. Researchers in the field have proposed many
+  different mapping schemes such as page level FTL \cite{ban1995Flash},
+  Block FTL \cite{kim2002space}, and hybrid FTLs
+  \cite{kang2006superblock, fast07, last08}.
+
+  Page level FTL has been the de facto mapping
+  scheme used in the industries. however, large memory footprint
+  requires SSD to adopt larger DRAM memory. Fig \ref{fig:dram_size}
+  shows that the size of DRAM increased considerably over the years. It
+  shows that about 60$\%$ of SSDs have 512 Mbyte and 1 Gbyte of DRAM.
+\end{comment}
+
+
+\begin{comment}
+  A reasons behind the growth of DRAM size is to reflect the increased
+  size of SSD metadata such as mapping table. Instead, it can exploit block level mapping which
+  is better for sequential workloads and also can significantly reduce the
+  size of mapping information. A 256 Gbyte SSD
+  with 4 Kbyte page and 2 Mbyte of block, the page level FTL needs 
+  256 Mbyte of mapping table, but block FTL only needs to
+  store 512 Kbyte of information. Since log file system is aimed for  
+  generating sequential workloads, it would be ideal to match log
+  file systems with SSDs, then it can exploit block level mapping.
+\end{comment}
+
+\begin{comment}
+  \subsection{Stacking the Logs}
+  \label{subsec:stack_logs}
+
+  Log-structured file system in its essence is well aligned with the
+  append-only nature of the SSD. Sequential IO request originated by
+  log-structured file system can greatly simplify the address mapping and
+  the garbage collection overhead of the underlying storage.  Recently, a
+  number of key-value stores exploit append-only update mechanism to
+  optimize its behavior towards write operations \cite{lim2011silt, ghemawat2014leveldb}. 
+  However, the log-structured file system for SSD  entails a number
+  of redundancies whose result can be disastrous. There exist majorly
+  three redundancies: (i) garbage collection, (ii) mapping information,
+  and (iii) overprovisioning area.  Fig.~\ref{fig:layered_log_system}
+  illustrates an example: a log-structured file system over an SSD. 
+
+  First, each layer performs garbage collection on its managing address
+  space. There exist redundant efforts of log-structured storage device to
+  garbage collect data. We define Compound Garbage collection as the phenomenon 
+  where the storage level log system performs garbage collection on 
+  data blocks which are already segment cleaned by a log-structured 
+  file system. The Compound Garbage Collection not only degrades the 
+  IO performance but also shortens the lifespan of the 
+  Flash storage \cite{yang2014don, lee2016application, zhang2016parafs}.
+
+  Second, each layer has to manage its own metadata to keep information
+  for address mapping, and, as a result, larger memory is required to load
+  the metadata. As the capacity of SSD increases, the overhead of
+  maintaining the mapping information at Flash page granularity becomes
+  more significant. 
+
+  Third, each of the log layers needs to reserve a certain fraction of its
+  space, the overprovisioning area. The log-structured file system (or
+  SSD) sets aside a certain fraction of its file system space (or storage
+  space) to host the extra write operations caused by garbage
+  collection. Overprovisioning is an indispensable waste of the expensive
+  Flash storage. The total amount of overprovisioning areas for individual log
+  layers can be very significant. 
+\end{comment}
+
+\begin{comment}
+  Two log-structured systems stacked on top of each other is called as
+  stacking log system, and an example of such system is illustrated in
+  Fig \ref{fig:layered_log_system}. It shows that log file system is on
+  top of Flash-based storage device. When virtual file system sends data
+  down to file system, the data is recorded in the file system
+  partition. When there is not enough space left in the partition, the
+  file system runs segment cleaning to tidy up the invalid data. As a
+  result, the file system has to send not only the data received from the
+  virtual file system but also the writes generated by the segment
+  cleaning.
+
+  When the device writes the received updates on the storage medium, 
+  FTL decides where to put the data. When there is not enough space in
+  the storage, SSD runs garbage collection to reclaim free pages for
+  incoming data. Initial write volume increases as it is passed down in
+  the I/O hierarchy, which is typical in log-structured systems. And, it
+  is called Write Amplification.  Larger write amplification means
+  trouble for SSD because it not only has to handle more data but also
+  reduces the life of the device.
+\end{comment}
+
+
+\begin{comment}
+  \begin{figure*}[t]
+  \begin{center}
+  \includegraphics[width=5.7in]{./figure/comp_gc_scenario_1}
+  \caption{Example of Compound Garbage Collection ($Ln$ means LBA $n$)}
+  \label{fig:comp_gc_1}
+  \end{center}
+  \end{figure*}
+
+  \section{Compound Garbage Collection}
+  \label{sec:CompoundGC}
+
+  We define Compound Garbage collection as the phenomenon where the storage
+  level log system performs garbage collection on data blocks which are
+  already segment cleaned by a log-structured file system. The compound
+  garbage collection not only degrades the IO performance but also shortens
+  the lifespan of the Flash storage.
+
+  Fig. \ref{fig:comp_gc_1} illustrates a scenario of compound garbage
+  collection. We assume that each segment on a file system has four pages
+  and the file system performs garbage collection in units of
+  segments. The segments that are not shown in Fig.~\ref{fig:comp_gc_1}
+  store cold data. Each block on the SSD 
+  contains ten pages. 
+  The file system and the SSD perform garbage
+  collection when only one empty segments and only one empty block is left
+  on the layer, respectively. Additionally, we assume that the
+  SSD  is aware of the invalidated LBAs through TRIM command
+  \cite{shu2007data}.
+  {\color{red}Each NAND page in the SSD keeps
+  a filesystem logical block. $L_i$ denotes the logical block written in
+  the page where $i$ represents the logical block address (LBA).}
+  The flag represents the state of the corresponding page; $V$ is
+  for valid and $I$ is for an invalid page. Initially, segment 0 holds data
+  pages for LBA 1 to LBA 4, and segment  
+  1 contains LBA 5 and LBA 6. Both segments are stored in block 0 on the
+  SSD. 
+
+  Fig. \ref{fig:comp_gc_1}(b) shows the state of the file system and the
+  SSD after $L1$ and $L4$ are updated. The updated block is appended at
+  the end. The flags in old pages of the file system and SSD are now set
+  to invalid. Upon receiving an update, the file system writes a new data on
+  segment 2; the file system finds that there is only one free segment
+  left, and thus triggers the segment cleaning process.
+
+  Fig. \ref{fig:comp_gc_1}(c) shows the status of each layer after segment 
+  cleaning. The file system has selected the segment 0 as the victim
+  segment. Valid pages in the segment 0, $L2$ and $L3$, are copied to the
+  segment 2. The file system notifies the changes to the storage
+  device. The SSD thinks that $L2$ and $L3$ are updated in the file system,
+  so it invalidates pages 1 and 2. Then, the SSD writes $L2$ and $L3$ on
+  page 8 and page 9 in block 0, respectively.  
+
+  After writing to page 8 and page 9, the SSD finds that there is only one
+  empty block left; thus, the garbage
+  collection takes a place(Fig.~\ref{fig:comp_gc_1}(d)). The block 0 is
+  selected as the victim.  All the valid pages in block 0 are
+  copied to empty block 1, and block 0 is erased and becomes free.
+
+  There are two things to note in our case study. First, the SSD garbage
+  collection is triggered because of the file system segment
+  cleaning. Second, both file system and storage system pass around $L2$
+  and $L3$ over and over. Compound Garbage Collection problem aggravates
+  when garbage collection unit of upper log layer is smaller than that of
+  lower log system  \cite{yang2014don}.
+\end{comment}
+
+
+\section{Design: Orchestrated File System}
+\label{sec:OrcFS_design}
+
+
+\subsection{Concept}
+We propose Orchestrated File System, \emph{OrcFS}. It intends to address
+three issues in the stacked log system: (i) Compound garbage collection,
+(ii) redundant mapping information and (iii) overprovisioning
+overhead. 
+
+OrcFS consists of a log-structured file system and an SSD.
+In OrcFS, SSD exposes its physical blocks to the host. OrcFS is directly
+responsible for address mapping and garbage collection of the Flash
+storage. In OrcFS, SSD does not have its
+own mapping table nor the garbage collection module. OrcFS does not have
+to reserve its own overprovisioning area. The similar file system has been
+widely used in embedded device area \cite{manning2010yaffs, woodhouse2001jffs}.
+Wear-leveling, bad block management and I/O parallelism 
+is managed by the firmware in the SSD, and the details are described 
+in \cref{subsec:da_mapping} and in \cref{subsec:bad_block_management}, respectively.
+
+We take advantage of the existing log-structured file system, F2FS
+\cite{lee2015f2fs}. F2FS adopts in-place update for metadata region and 
+out-of-place update for data region. To effectively incorporate this
+file system characteristics, we develop \emph{Disaggregate Mapping} which
+adopts different mapping granularity for different parts of the storage
+space. Fig. \ref{fig:f2fs_partition}, there are two regions in F2FS
+partition. For metadata data and data area, OrcFS applies page mapping and
+section based mapping which is to be detailed shortly, respectively.
+Fig. \ref{fig:system_layout} compares different file system layouts
+including in-place update file system (Ext4), log-structured file system
+(F2FS), and OrcFS. 
+
+\begin{figure}[t]
+\begin{center}
+\includegraphics[width=3.2in]{./figure/usl_layout}
+\caption{Disaggregate Mapping Layout}
+\label{fig:da_mapping_layout}
+\end{center}
+\end{figure}
+
+
+\begin{figure*}[t]
+\centering
+ \subfloat[Ext4 with Page mapping SSD]{
+ \includegraphics[width=2in]{./figure/ext4_arch}
+ \label{fig:ext4_layout}
+ }
+ \subfloat[F2FS with Page mapping SSD]{
+ \includegraphics[width=2in]{./figure/f2fs_arch}
+ \label{fig:f2fs_layout}
+ }
+ \subfloat[OrcFS]{
+ \includegraphics[width=2.06in]{./figure/usl_architecture}
+ \label{fig:usl_layout}
+ }
+\caption{System Layout for Different File Systems and SSD Mapping
+  Scheme (SB: Superblock, IM: Inode Map)}
+\label{fig:system_layout}
+\end{figure*}
+
+Fig. \ref{fig:ext4_layout} shows the configuration of Ext4 file system. Since Ext4 is an in-place update file system, it does not need a mapping table to manage the inodes and page mapping is used in the storage. On the other hand, as shown in Fig.~\ref{fig:f2fs_layout} 
+and Fig. \ref{fig:usl_layout}, F2FS and OrcFS needs a Inode Map (IM) data structure in file system layer to manage inodes.  F2FS uses page mapping table, but OrcFS uses Disaggregate mapping where only the metadata area is page mapping table. OrcFS does not keep a mapping table in the SSD for the data area. 
+
+\subsection{Disaggregate Mapping}
+\label{subsec:da_mapping}
+
+The crux of OrcFS is to
+manage LBAs with \emph{Disaggregate Mapping}, which is a mapping
+specifically tailored to accommodate two different I/O characteristics:
+small random writes and large sequential writes. 
+Fig.~\ref{fig:da_mapping_layout} schematically illustrates the storage
+and file system layouts for Disaggregate Mapping. 
+In Disaggregate Mapping, OrcFS directly manages the main area of the
+file system with section level mapping granularity. It delegates mapping
+of metadata area to SSD. Metadata area needs to be managed with page
+mapping. F2FS manages the main area in log-structured manner and the
+unit of a write is \emph{section}. This characteristic allows a OrcFS to
+use large mapping granularity in managing the Flash storage. It
+significantly reduces the mapping table overhead. In OrcFS, the section
+size is aligned with the superblock size of an SSD. The superblock size
+is the block size $\times$ number of channels. In our settings, the page
+size is 8 Kbyte and section size is 256 Mbyte. The SSD
+Firmware makes the decision over received LBAs. If they are for metadata
+area, the firmware directs them to page mapping managed region of the
+device; if LBAs within the range of main area is received, the firmware
+recognizes them as PBAs. 
+
+By making one to one mapping between a section in OrcFS and a superblock in SSD, OrcFS can maximize the channel/way parallelism in issueing write requests on a section. There is one more benefit in using the one to one mapping other than exploiting the channel/way parallelism. It is that the hotness of data such as hot, warm, and cold in different sections are not blended into any one superblock; rather, all of them are stored in corresponding superblocks preserving the hotness of the data.
+
+OrcFS successfully addresses the three redundancies in stacked log. 
+First, it eliminates the redundant mapping tables. Mapping information
+for metadata area and main area are harbored by Flash storage and the
+host, respectively. More importantly, the host maintains the mapping
+table in super block granularity, which reduces the mapping table size
+to 1/256. For 4 Tbyte SSD, legacy page mapping requires
+4 Gbyte of DRAM for mapping table. OrcFS reduces it to 9 Mbyte. 
+
+
+Second, it eliminates the possibility of compound garbage
+collection. Third, since the SSD is free from garbage collection in the
+main area, it removes most of the overprovisioning significantly
+reduces the volume of wasted space. In order for OrcFS to exploit 
+disaggregate mapping scheme, file system needs to understand the page and
+block size of the underlying SSD  and the SSD needs to be informed about
+the layout of the file system in OrcFS. The negotiation takes in place when
+the file system is first formatted on the storage device. 
+
+\begin{figure}[t]
+\centering
+ \subfloat[Non-preemptive Segment Cleaning]{
+ \includegraphics[width=3.4in]{./figure/preemptive_sc_1}
+ \label{fig:non_preemptive}
+ }\hspace{-1.3em}
+ \subfloat[Preemptive Segment Cleaning]{
+ \includegraphics[width=3.4in]{./figure/preemptive_sc_3}
+ \label{fig:quasipreemptive}
+ }\hspace{-1.3em}
+ \subfloat[Quasi-Preemptive Segment Cleaning]{
+ \includegraphics[width=3.4in]{./figure/preemptive_sc_2}
+ \label{fig:preemptive}
+ }
+ \caption{Different Segment Cleaning Behaviors}
+ \label{fig:quasi_sc}
+\end{figure}
+
+\subsection{Quasi-Preemptive Segment Cleaning}
+In OrcFS, the file system is responsible for consolidating the valid
+file system blocks and reclaiming the invalid blocks. The individual
+file system blocks are statically bound to physical NAND
+pages. Consolidating the valid file system blocks migrates the 
+corresponding NAND pages.
+OrcFS runs segment cleaning when the number of free segments is below the
+threshold. OrcFS
+adopts two types of segment cleaning: cost-benefit segment cleaning
+\cite{rosenblum1992design} for background segment cleaning and greedy segment
+cleaning \cite{kawaguchi1995Flash} for background segment cleaning.
+
+
+The unit of segment cleaning in OrcFS is a \emph{section}, and we configure 
+it to match the erase unit of an SSD. Segment cleaning consolidates all 
+segments in a section. For example, the SSD used in the experiment has 
+superblock of 256 Mbyte. 
+TRIM command \cite{shu2007data} sends the address of free sections reclaimed during file system segment cleaning operation to the storage device. Then, the storage device uses TRIM information to erase the NAND blocks within corresponding superblock. Since all sections are one to one mapped to superblocks erase operation is suffice to complete the storage device garbage collection without any valid page copy operations. Unified segment cleaning in OrcFS solves the compound garbagec collection problem \cite{yang2014don}.
+
+
+The segment cleaning
+latency can be prohibitively large especially when it interferes with
+the IO request. We develop Quasi-Preemptive Segment Cleaning to
+reduce the IO response time. After each segment is
+cleaned, the OrcFS checks if there is any outstanding IO. If there is a
+pending user I/O, Quasi-Preemptive Segment Cleaning preempts current
+segment cleaning operation and serves the I/O.
+Fig. \ref{fig:quasi_sc} illustrates an example of Non-preemptive,
+Pre-emptive, and Quasi-Preemptive Segment Cleaning with a victim section, 
+A. There are
+four segments, A0 to A3, in the section. While segment cleaning segment
+A1, the system received user I/Os. 
+Once Non-preemptive Segment Cleaning (Fig. \ref{fig:quasi_sc}(a))
+runs, it never gets interrupted, and all I/O requests received during
+the cleaning process are serviced after the segment cleaning is
+completed. Thus, Non-preemptive Segment Cleaning delays the user I/O
+response time. Preemptive Segment Cleaning
+(Fig. \ref{fig:quasi_sc}(b)), on the other hand, stops the job and
+handles the user I/Os immediately. Although it provides better
+response time, but there is the overhead of continuously checking the user
+I/O requests. 
+
+Quasi-Preemptive Segment Cleaning (Fig. \ref{fig:quasi_sc}(c)) 
+checks for any outstanding I/Os 
+after each segment in the victim section is cleaned. If there are
+pending requests, the system preempts current segment cleaning
+operation and serves the write request. When the request is completed,
+the system resumes preemted segment cleaning operation and cleans
+segment A2 and A3. 
+In order to resume the segment cleaning, OrcFS keeps \texttt{SC\_context} data structure to store the progress of the segment cleaning at the time of preemption. The data structure keeps record of victim section number and next segment number to clean.
+
+When the free space in the file system is scarce, the file system needs to prevent the free space from running out. OrcFS keeps soft and hard threshold, which is set to 5\% and 1\% of the size of file system partition. OrcFS makes sure that the pending host write requests are always less than the size of current free space. 
+
+
+When the free space becomes less than the hard threshold, OrcFS gives acquiring the free space higher priority than processing pending host I/Os. We set maximum segments, $T_{MaxSegments}$, to free during the segment cleaning in hard threshold to suppress the segment cleaning and allow file system to process the pending host I/Os responsively. Once OrcFS frees $T_{MaxSegments}$ within the victim section, the file system checks for any pending I/Os and preempts segment cleaning operation. Table \ref{tab:qpsc} describes the terms used in deciding $T_{MaxSegments}$.
+
+
+\begin{table}[t]
+  \begin{center}
+  \begin{tabular}{|c|c|} \hline
+  Represent         		& Description								\\ \hline\hline
+$\rho$					& The Utilization of the victim segment 		\\ \hline
+$N_{BlocksPerSeg}$			& \# of blocks in a segment					\\ \hline
+$T_{randr}$				& A NAND page random read latency		 	\\ \hline
+$T_{seqw}$  				& A NAND page sequential read latency		\\ \hline
+$T_{Segment}$				& The cleaning latency for a segment			\\ \hline
+$T_{MaxLatency}$			& Max cleaning latency allowed for a system 	\\ \hline	
+$T_{MaxSegments}$			& \# of victim segments before preemption		\\ \hline	
+  \end{tabular}
+  \end{center}
+  \caption{Parameters used in the Segment Cleaning Latency Modeling}
+  \label{tab:qpsc}
+\end{table}
+
+Given that the utilization of a victim section is $\rho$, the number of valid blocks in the segment is $\rho \times N_{BlocksPerSeg}$. $\rho$ can be measured as the function of the size of a partition, the size of user data, and the size of free space in a specific workload \cite{Desnoyers:2012:AMS:2367589.2367603, bux2010performance}. Since valid blocks in a victim segment is randomly read, and the valid blocks are sequentially written to the free segment, the time spend to move the valid blocks can be described as $T_{randr}+T_{seqw}$. Thus, the time spent to clean one victim segment can be derived as Eq. (\ref{eq:t_seg}). 
+
+
+\begin{equation}
+T_{Segment} = \rho \times N_{BlocksPerSeg} \times (T_{randr}+T_{seqw})
+\label{eq:t_seg}
+\end{equation}
+
+
+Suppose the maximum possible latency for a segment cleaning operation is $T_{MaxLatency}$, OrcFS spends $T_{MaxLatency}$ for a segment cleaning, then checks for an pending host I/Os. In order to find out the number of segments before the preemption, we use Eq. (\ref{eq:t_seg}) as the time spent to clean a segment. Then, $T_{MaxSemgents}$ can obtained using Eq. (\ref{eq:sc_hard}). 
+
+\begin{equation}
+T_{MaxSegments} \leq T_{MaxLatency} / T_{Segment}
+\label{eq:sc_hard}
+\end{equation}
+
+For example, when $T_{Segment}$ and $T_{MaxLatency}$ is 7.7 msec and 100 msec in aforementioned workload, respectivley, then, $T_{MaxSegments}$ is 12. \cref{subsec:qpsc_test} uses this result, and a hard threshold triggered segment cleaning operation frees 16 segments (rounded to the closest number in power of two) before checking for any pending host I/Os.
+
+
+Quasi-preemptive Segment Cleaning adopts the algorithm proposed by
+\cite{lee2011semi}. 
+Assume that the user I/O is for the blocks in the victim section.
+To copy the valid data from the victim section, the data 
+will be stored in the page cache. Then, the read request gets hit 
+from the page cache. 
+When a read request preempts segment cleaning and requests a data
+on the victim section that is not yet copied, then Quasi-Preemptive
+Segment Cleaning uses the data in the page cache, instead of rereading
+from the victim section, to write onto the section that the segment
+cleaning is using.
+On the other hand, when OrcFS receives update request on the victim section 
+and the valid data in the victim section is yet to be copied onto the 
+free section, then Quasi-preemptive segment cleaning invalidates the 
+data in the storage and takes the user data as the valid data and 
+writes it to the free section.
+
+
+
+\begin{table*}[t]
+  \begin{center}
+  \begin{tabular}{|c|c|c|c|c|c|c|c|} \hline
+  						& OrcFS 		& ParaFS\cite{zhang2016parafs}	& AMF\cite{lee2016application} & NVMKV\cite{nvmkv} & ANViL\cite{anvil} & FSDV\cite{zhangremoving} & SDF\cite{sdf}	\\ \hline \hline
+  Mapping Table (Host) 	& $\Leftcircle$ 	& $\Circle$				& $\Circle$ 	& $\times$ 	& $\times$ 		& $\times$ 		& $\times$ 		\\ \hline
+  Mapping Table (Device) 	& $\Rightcircle$ & $\Circle$				& $\Circle$	& $\Circle$ 	& $\Circle$ 		& $\Circle$ 		& $\Circle$ 		\\ \hline
+  Mapping Table Size 		& O($P_{meta}$) & O($P_{meta}+B$)	& O($B$) 		& O($P$) 		& O($P$) 			& $\leq$ O($P$) 	& O($B$) 			\\ \hline
+  Garbage Collection		& Host 		& Host 					& Host 		& Host 		& Device 			& Device 			& Host 			\\ \hline
+  Legacy Interface  		& $\Circle$ 	& $\Circle$				& $\times$ 	& $\Circle$ 	& $\times$  		& $\times$ 		& $\times$ 		\\ \hline
+  Overprovisioning 		& $\triangle$ & $\triangle$ 			& $\times$ 	& $\Circle$ 	& $\Circle$ 		& $\Circle$ 		& $\times$ 		\\ \hline
+  Application 			& General 	& General					& General 	& KV Store 	& General 		& General 		& KV Store 		\\ \hline
+  \end{tabular}
+  \end{center}
+  \caption{Comparison between OrcFS and Other Systems ('$\Circle$' means that the system uses the metric (in the layer) or needs it, '$\triangle$' means that the system uses the metric only for very small portion, othrewise '$\times$', $P$: The total number of NAND Pages, $B$: The total number of NAND Blocks, $P_{meta}$: The number of NAND pages for filesystem metadata)}
+  \label{tab:compare_usl}
+\end{table*}
+
+
+
+\subsection{Bad Block Management and Wear-Leveling}
+\label{subsec:bad_block_management}
+
+In OrcFS, SSD is responsible for bad block management. An SSD sets aside a
+set of NAND Flash blocks as a spare area \cite{chow2007managing}. Spare area is not
+visible to the host. SSD provides a bad block management module with bad block 
+indirection table. Bad block indirection table consists of a pair of
+$<$physical block number, spare block number$>$. Physical block number
+denotes the physical block number of the bad block. The spare block number
+is the physical block number of the spare block where the IO request for
+the bad block is redirected to. In segment cleaning, all the valid
+blocks are consolidated to the newly allocated segment. The replacement
+block allocated for the bad block is also migrated to the newly
+allocated segment. After the replacement block is copied to the newly
+allocated segment, the respective bad block mapping table is reset.
+Fig. \ref{fig:bad_block} shows how the bad block management layer in SSD
+interacts with segment cleaning.
+
+
+\begin{figure}[t]
+\begin{center}
+\includegraphics[width=3.3in]{./figure/bad_block_management}
+\caption{Segment Cleaning with Bad Block Management}
+\label{fig:bad_block}
+\end{center}
+\end{figure}
+
+Segment cleaning policy in OrcFS makes wear-leveling in units of superblock possible. Since the target SSD we used in the experiment performs garbage collection in units of superblock, NAND blocks within a superblock have the same erase count; thus, OrcFS performs wear-leveling in units of superblock. When OrcFS requests a write to a section that is not mapped to a superblock in the SSD, the device allocates a free superblock with the lowest erase count to the corresponding section.
+
+
+\subsection{Comparison}
+
+The work on eliminating the redundancy in file systems and SSD 
+firmwares is not new in the field; however, they  did not solve 
+the problem entirely. Table \ref{tab:compare_usl} summaries the works and also shows
+advantages of OrcFS over existing schemes.
+
+Lee et al. \cite{lee2016application} proposed AMF (Application Managed-Flash) and Zhang et al. \cite{zhang2016parafs} proposed ParaFS that uses log-structured file system in removing the overwrite operation in SSDs, and they increased the mapping unit from a page to a block.
+But, the details of each scheme is different. OrcFS and ParaFS \cite{zhang2016parafs} exploits In-place update in metadata area to avoid ``wandering tree''\cite{rosenblum1992design} problem, and saves metadata using page mapping. The size of page mapping table that manages file system metadata for ParaFS and OrcFS is only 2.2 Mbyte for 1 Tbyte of SSD, which is very small. On the other hand, AMF \cite{lee2016application} takes log-structured approch in managing the file system metadata. Their approach manage all the given partition area with block mapping; however, it must manage in-memory metadata to follow the changes in inode map.
+AMF and ParaFS uses the size of NAND block as the unit of the mapping table, but OrcFS uses superblock as the unit. 
+
+ParaFS tries to gather data with the same hotness to a NAND block via 2-D data allocation policy in the file system and NAND block mapping in the SSD. On the other hand, OrcFS allocates data to different sections depending on their hotness. Since each section is mapped to a superblock, write operations in OrcFS can enjoy the maximum parallelism that the device offers without the aid of `Parallelism-Aware Scheduler' proposed by ParaFS. ParaFS warned that the SSDs using superblock as the unit of the mapping may suffer from long garbage collection latency. OrcFS implements quasi-preemptive segment cleaning (QPSC) policy to minimize the host I/O process time while using the section and superblock as the unit of garbage collection. 
+
+%Another difference OrcFS have compared with AMF and ParaFS is that OrcFS solves block thrashing problem via block patching mechanism. Block thrashing becomes a problem when there is a mismatch in the size of host block, e.g. 4 Kbyte, and the size of page in SSD, e.g 8 Kbyte.
+
+FSDV\cite{zhangremoving} and NVMKV\cite{nvmkv} reduces the
+size of metadata in device or host significantly. But, In FSDV,
+the size of the mapping table is dynamically resized, and in the worst case,
+the mapping table has same size as a page mapping table.
+NVMKV\cite{nvmkv} removes the host-side metadata and
+leverages FTL metadata and interfaces to manage the key-value store.
+But NVMKV still requires a page granuality mapping table in device.
+Also NVMKV \cite{nvmkv} and SDF \cite{sdf} is limited to a particular
+workloads or systems. ANViL \cite{anvil} lets the host modify device 
+logical-to-physical mapping information through a new I/O interfaces, 
+but it does not have effort to reduce the mapping table size.
+
+\begin{comment}
+A few works proposed that the host holds the
+responsibility to manage and modify SSD metadata to improve the
+performance of the storage \cite{anvil, nvmkv, sdf}, and reduces the
+size of metadata in host or device significantly
+\cite{zhangremoving, nvmkv}. Table \ref{tab:compare_usl} shows that
+OrcFS has a number of advantages over existing schemes. The size of
+the mapping table in OrcFS is small, and unlike FSDV \cite{zhangremoving},
+the size is fixed which reduces the management overhead. In OrcFS,
+overprovisioning area of an SSD need not be large 
+because garbage collection is only performed on a small area for
+storing file system metadata. More importantly, OrcFS does not introduce
+any new I/O interface to the system; instead, it makes use of
+existing ones. Finally, unlike NVMKV \cite{nvmkv} and SDF \cite{sdf}
+which targets specific workloads, OrcFS is not limited to a particular
+workloads or systems.
+
+Table \ref{tab:compare_usl} summarizes the efforts \cite{zhang2016parafs, lee2016application, anvil, zhangremoving, nvmkv, sdf}.
+ANViL \cite{anvil} provides address remapping interface to the host 
+system that allows modifying logical-to-physical mapping information
+in the device. Since multiple logical addresses can be mapped to a
+physical address, it does not require to copy the actual physical
+blocks while creating a snapshot, copying data, and in logging a
+journal; all it needs to do is remap the logical address. 
+FSDV \cite{zhangremoving} modified inodes of a file system to point physical 
+addresses of an SSD directly. After updating the inode, the device removes 
+the corresponding mapping table entry which allows dynamically reducing 
+the SSD mapping table size.
+NVMKV \cite{nvmkv} replaced operations for key-value store with FTL 
+commands such as atomic multiple-block-write, p-trim, exist, and 
+iterate which made it possible to remove in-memory metadata for 
+key-value store, and it reduces write amplification considerably.
+One other interesting work that improves the performance of Flash-based 
+storage is SDF (Software defined Flash) \cite{sdf}. SDF exposes 
+the internal Flash channels to the host as an individual block device.
+Each channel engine in SDF manages its own block mapping table, bad block management,
+and wear-levels of Flash memories. The host system take charge of the garbage collection of the
+Flash memory. Thus, the overprovisioning area of SSD is entirely open to
+the user.
+
+The work on eliminating the redundancy in file system and SSD firmware is not new in the field; however, they  did not solve the problem entirely. Lee et al. \cite{lee2016application} proposed AMF (Application Managed-Flash) and Zhang et al. \cite{zhang2016parafs} proposed ParaFS that uses log-structured file system in removing the overwrite operation in SSD and increased the mapping unit from a page to a block. In return, the mapping size overhead is reduced to number of blocks from the number of pages in the device. They also provide similar feature that notifies the free space reclaimed during afile system garbage collection to the SSD, so that the SSD does not have to copy data while performing device garbage collection. 
+
+But, the details of each scheme is different. ParaFS \cite{zhang2016parafs} and OrcFS exploits In-place update in metadata area to avoid ``wandering tree''\cite{rosenblum1992design} problem, and saves metadata using page mapping. The size of page mapping table for ParaFS and OrcFS to manage file system metadata is only 2.2 Mbyte for 1 Tbyte of SSD, which is very small. On the other hand, AMF \cite{lee2016application} takes log-structure approch in managing the file system metadata. This approach can manage all the given partition area with block mapping; however, it must manage in-memory metadata to follow the changes in inode map.
+
+AMF and ParaFS uses the size of NAND block as the unit of the mapping table, but OrcFS uses the size of superblock as the unit. ParaFS tries to gather data with the same hotness to a NAND block via having 2-D data allocation policy in the file system and NAND block mapping in the SSD. On the other hand, OrcFS allocates data to different sections depending on their hotness. Since each section is mapped to a supeblock, writes in OrcFS can enjoy the maximum parallelism that the device offers. Unlike ParaFS that has conflict in file system level hotness grouping and parallelism in the SSD, OrcFS does not have such conflict. 
+
+ParaFS warned that the SSDs using superblock as the unit of the mapping may suffer from long garbage collection latency. OrcFS implements quasi-preemptive segment cleaning (QPSC) policy to minimize the host I/O process time while using the section and superblock as the unit of garbage collection. 
+
+Another difference OrcFS have from AMF and ParaFS is that it solves block thrashing problem via block patching mechanism. Block thrashing becomes a problem when there is a mismatch in the size of host block, e.g. 4 Kbyte, and the size of page in SSD, e.g 8 Kbyte. 
+\end{comment}
+
+
+\begin{figure}[b]
+\begin{center}
+\includegraphics[width=3in]{./figure/patch_manager_ex}
+\caption{Two-page Write Behavior with and without Patch Manager}
+\label{fig:patch_manager_ex}
+\end{center}
+\vspace{-1em}
+\end{figure}
+
+
+\section{Implementation}
+\label{sec:OrcFS_implementation}
+
+\begin{comment}
+The file system layer in OrcFS plays two important roles. First, it has
+to persistently store the user data in the storage device. Second, it
+has to handle garbage collection on main area and send a set of empty
+section numbers acquired from segment cleaning process to
+storage. Upon receiving the section numbers, the device makes the
+corresponding NAND blocks as empty blocks. Therefore, there is no need
+to run garbage collection for the NAND blocks belonging to main area but to erase
+the target blocks that the file system requested.
+
+Four parts of F2FS is modified to meet the requirements of OrcFS
+file system. First, we introduce patch manager to avoid partial writes and second, 
+we modified write policy of the file system. Third, we
+modified file system formatting tool. Finally, we added a mechanism
+to transfer section numbers reclaimed by segment cleaning to OrcFS
+storage device.
+\end{comment}
+
+\subsection{Block Patching}
+
+File system block size is 4 Kbyte, whereas the unit size of an SSD
+varies from 4 Kbyte to 16 Kbyte, depending on manufacturers. The
+file system IO unit size is not aligned to the Flash page size. SSD
+firmware is responsible for handling this discrepancy through request
+merge \cite{kim2013partial}, sub-page mapping \cite{qin2011mnftl}, read-modify-write
+\cite{agrawal2008design} and etc. In OrcFS, physical Flash page is directly exposed to
+host and the host file system need to take the responsibility of
+resolving this misalignment. We develop \emph{Block Patching} for this
+purpose.
+
+Fig. \ref{fig:patch_manager_ex}(a) illustrates an issue in F2FS. Each
+Flash page can store up to two file system blocks. To write LBA 0, F2FS
+needs to perform file system level read-modify-write with dummy content
+padded in the latter half of the Flash page. A subsequent write request
+for LBA 1 entails that the LBA 0 and LBA 1 are programmed into a newly
+allocated Flash page, page 0 invalidating the Flash page
+0. Read-modify-write accompanies significant overhead.
+
+We develop \emph{Block Patching} to address the overhead of
+Read-modify-write in OrcFS. When the write request size from file system is
+not aligned with the NAND Flash page size, OrcFS pads free page cache
+entry (4 Kbyte) to the write request to make its size aligned with the
+Flash page size. The file system needs to allocate additional file system
+block to accommodate the padded page cache entry. While the padded page
+cache entry is not reflected in the file size, it consumes an additional
+file system block.
+
+
+We introduce Patch Manager in OrcFS file system layer to mandate each write
+requests be aligned with the page size of the
+storage(Fig. \ref{fig:patch_manager}). The patch manager allocates an
+empty page from page cache and concatenates it with original write
+request. 
+
+\begin{comment}
+  OrcFS file system manipulates bio structure to form a request for the
+  storage. But, before sending it to the storage, the file system sends
+  it to patch manager to check whether the request is aligned with the
+  page. If it is aligned, then it simply returns bio structure; and, if
+  it is not aligned with the page size, then patch manager adds a dummy
+  page and makes the length of the request aligned with the page size.
+\end{comment}
+
+\begin{figure}[t]
+\begin{center}
+\includegraphics[width=3in]{./figure/patch_manager}
+\caption{Block Patch Manager}
+\label{fig:patch_manager}
+\end{center}
+\end{figure}
+
+
+Fig. \ref{fig:patch_manager_ex}(b) shows how patch manager works in
+OrcFS. When the IO size is less than the Flash
+page size, the patch manager adds dummy 4 Kbyte page along with LBA 0 and
+sends it to storage in OrcFS. The storage device assigns LBA 1 as the
+dummy data and programs all the data on page 0. When
+the file system receives a write for LBA 1, OrcFS file system assigns
+it to next logically consecutive address, which is LBA 2. Since the
+request for LBA 2 is also not aligned, patch manager also adds dummy
+page to the request and writes the request to page 1. Since a dummy
+page does not contain any useful data, we mark it as invalid to let
+segment cleaning reclaims the page.
+
+
+Patch Manager appends a dummy page to align the size of the write request to the NAND page size. The cost of using Patch Manager is that the user has to endure the space overhead until it is freed with segment cleaning process. \cref{subsec:patching_overhead_test} analyzes the space overhead incurred by Patch Manager. The result shows that Patch Manager generates about 0.3\% to 27\% more write requests depending on the workload, but the performance drop is almost insignificant.
+
+
+\begin{comment}
+
+{\color{red}
+Patch Manager의 Block Patching 동작은 쓰기 요청 정렬을 위해 dummy page를
+기존 쓰기 요청에 추가함으로써, dummy page가 segment cleaning으로 인해 회수
+될 때까지 storage의 space overhead를 야기한다. 
+\cref{subsec:patching_overhead_test}에서는 3가지 워크로드에 대해
+Patch Manager의 overhead를 확인한다. dummy page 추가로 인해 워크로드에 따라
+0.3\% $\sim$ 27\%의 추가 쓰기 요청이 발생하였으며, 그러나 그로 인한 성능 
+저하가 미미함을 확인하였다.}
+
+\end{comment}
+
+\subsection{Disabling Threaded Logging in File System}
+
+F2FS updates the file system in in-place manner when the file system 
+utilization is high, \emph{threaded logging} \cite{oh2010optimizations}. 
+OrcFS maintains the address mapping in section granularity and it does not
+allow relocaiting individual file system blocks to a different
+position. In order to guarantee that writes to main area are with only
+sequential writes and can be relocated at section granularity, 
+we disabled the use of threaded logging in OrcFS. 
+
+\subsection{Integrating the File System and Storage}
+
+\begin{comment}
+  \begin{figure}[t]
+  \begin{center}
+  \includegraphics[width=2.5in]{./figure/formatter.eps}
+  \caption{Communication between mkfs.f2fs and SSDs}
+  \label{fig:formatter}
+  \end{center}
+  \end{figure}
+\end{comment}
+
+In OrcFS, the file system and the storage exchanges and shares 
+a few critical information to eliminate all the redundancies in 
+stacking the log-structured file system over the Flash storage.
+We modified f2fs-tools \cite{f2fs_tools} to
+acquire the information and exploit them in OrcFS. 
+The storage informs the capacity, the 
+Flash page size, and the erase unit size to the host. Then, the 
+host informs the storage about the size of the metadata which it 
+needs to maintain. The storage uses the information to define the 
+regions for metadata and main area of the file system on the storage. 
+
+\begin{comment}
+  Fig. \ref{fig:formatter} illustrates how mkfs.f2fs and SSD are sharing
+  its information. The phase is completed in three steps: (i) In the
+  beginning of file system format, OrcFS device acknowledges with its page,
+  erase unit, and storage capacity to the file system, (ii) the file system
+  sets the  size of a section, creates metadata and main area, and returns
+  the area  information to OrcFS storage device, and (iii) the storage
+  device  initializes metadata area with page mapping table and let main
+  area be  managed by the file system. 
+\end{comment}
+
+\begin{comment}
+  Theses information is transferred to each other at file system
+  format time.   
+  The size of metadata in OrcFS file system depends on the capacity of the
+  storage. As soon as the capacity is made known to the file system,
+  it creates a file system partition and passes down the region for
+  metadata and main area to the storage
+
+  In the metadata area, F2FS keeps superblock which holds file system
+  partition information,
+  checkpoint for file system recovery, segment information table that
+  records validity and other information about segments, and node
+  address table that keeps account of file related metadata. 
+  After formatting, OrcFS file system has segment cleaning unit aligned with
+  garbage collection unit of the storage, and patch manager can send
+  page aligned write requests to the storage.
+\end{comment}
+
+\begin{comment}
+  \begin{figure}[t]
+  \begin{center}
+  \includegraphics[width=3.2in]{./figure/preemptive_sc}
+  \caption{Quasi-Preemptive Segment Cleaning Behavior}
+  \label{fig:quasi_sc}
+  \end{center}
+  \end{figure}
+\end{comment}
+
+
+\section{Experiment}
+\label{sec:experiment}
+
+\subsection{Experiment Setup}
+\label{subsec:exp_setup}
+
+\begin{comment}
+  \begin{table}[h]
+  \begin{center}
+  \begin{tabular}{|c|c|c|c|} \hline
+  		     & F2FS	& Ext4	& OrcFS 		\\ \hline\hline
+  File System	& F2FS	& Ext4	& OrcFS	\\ \hline
+  SSD Mapping	& Page	& Page	& Disaggregate	\\ \hline
+  \end{tabular}
+  \end{center}
+  \caption{System Information (File System and SSD Mapping Scheme)}
+  \label{tab:system_info}
+  \end{table}
+\end{comment}
+
+We compare the performance of OrcFS against F2FS and in-place update
+file system, Ext4, on Linux Kernel 3.18.1. OrcFS uses disaggregate
+mapping, and F2FS and Ext4 use page mapping SSD. 
+We used 
+Samsung SSD 843Tn\cite{ssd843tn} for experiments, and modified its
+firmware to implement OrcFS. 
+To use disaggregate mapping on the device, we disable SSD garbage collection
+in the main area, and use the information given by the mkfs.f2fs to bind
+the logical address to the physical address. The firmware manages metadata 
+area with page mapping table and SSD garbage collection only works for
+metadata area.
+
+Table \ref{tab:ssd_info} shows
+the specification of the host system and SSD 843Tn used in the performance
+evaluations. The SSD performs
+garbage collection in units of superblock with the size of 256 Mbyte where
+a superblock is a group of NAND blocks with same block number in an array of
+Flash memories in channels and ways. 
+All experiments done in this paper, except for the experiments shown in \cref{subsec:ycsb_bench}, uses desktop environment described in Table \ref{tab:ssd_info}.
+
+We set the section size of F2FS to 256 Mbyte in all experiment. 
+This is based on the fact that 
+the performance is the highest when the size of the section matches 
+the garbage collection unit of the storage device. We checked the 
+performance of F2FS while varying the size of a section. 
+Compared to the IOPS and WAF of F2FS with section size of 2 Mbyte,
+F2FS with section size 256 Mbyte shows 24$\%$ higher IOPS and 20$\%$ lower WAF.
+
+We use Filebench\cite{filebench} benchmark tool for the performance test.
+Filebench generates a pre-defined synthetic workloads and we
+make use of two workloads; fileserver, varmail. Table \ref{tab:filebench}
+shows the summary of the each filebench workload.
+
+
+\begin{comment}
+  Since SSDs are sensitive to test environment, we create a precondition
+  prior to performing any experiments. Detailed steps in the preparation
+  is described in each experiments. 
+\end{comment}
+
+\begin{table}[t]
+\begin{center}
+\begin{tabular}{|c|p{6cm}|} \hline
+\multirow{4}{*}{Desktop} & CPU: Intel i7 @3.40GHz \\ 
+& Memory:  8 Gbyte					\\ 
+& OS: Ubuntu 14.04					\\ 
+& Kernel: Version 3.18.1				\\ \hline
+\multirow{4}{*}{Server} & CPU: 2*Intel Xeon E5-2630 @2.30GHz \\ 
+& Memory:  256 Gbyte					\\ 
+& OS: Ubuntu 14.04					\\ 
+& Kernel: Version 3.18.1				\\ \hline
+\multirow{4}{*}{Storage} & Capacity: 256 Gbyte (include 23.4 Gbyte overprovisioning) \\ 
+& Page size: 8 Kbyte				\\ 
+& Block size: 4 Mbyte				\\ \hline
+\end{tabular}
+\end{center}
+\vspace{-0.7em}
+\caption{Host system and storage (Samsung SSD 843Tn \cite{ssd843tn})}
+\label{tab:ssd_info}
+\end{table}
+
+\begin{table}[t]
+\begin{center}
+\begin{tabular}{|c|c|c|c|c|c|} \hline
+  		     & Files	& File size & Threads & R/W   & fsync 		\\ \hline\hline
+  fileserver	& 80,000	& 128 KB	   & 50	    & 33/67 & N\\ \hline
+  varmail 	& 8,000	& 16 KB     & 16	    & 50/50 & Y\\ \hline
+\end{tabular}
+\end{center}
+\vspace{-0.7em}
+\caption{Summary of Filebench Workload}
+\label{tab:filebench}
+\end{table}
+
+\begin{table}[t]
+\begin{center}
+  \begin{tabular}{|c|r|} \hline 
+                         & Mapping Size       \\ \hline\hline 
+Page mapping             & 256 Mbyte          \\ \hline 
+FSDV\cite{zhangremoving} & $\leq$ 256 Mbyte  	\\ \hline 
+Hybrid mapping (LAST \cite{last08}) & 4 Mbyte \\ \hline 
+Disaggregate Mapping     & 1 Mbyte            \\ \hline
+\end{tabular}
+\end{center}
+\vspace{-0.7em}
+\caption{Size of Mapping Table (256 Gbyte SSD)}
+\label{tab:meta_size}
+\end{table}
+
+\subsection{Mapping Table Size}
+
+Table \ref{tab:meta_size} compares the size of mapping tables in 
+Page mapping, FSDV \cite{zhangremoving}, Hybrid mapping \cite{last08},
+and Disaggregate mapping.
+Page mapping uses 256 Mbyte of memory when disaggregate mapping of OrcFS uses
+only 1 Mbyte. Although page mapping has large memory footprint, its
+most valuable characteristics is that data can be placed in any
+available places in the storage. However, as the size of SSDs is
+increasing, merits in using page mapping are becoming less
+appealing. For example, for 1 Tbyte and 4 Tbyte SSD with 4 Kbyte as
+the page size, the memory space required to store the mapping table
+information is 1 Gbyte and 4 Gbyte, respectively.
+
+File System De-Virtualizer, FSDV \cite{zhangremoving}, makes
+file system point to a physical address in an SSD, and the pointed entry
+in the SSD is removed from the mapping table. Thus, the size of the
+mapping table is dynamically resized. In the worst case scenario, it
+has to maintain 256 Mbyte of the mapping table, just like the page mapping
+table. 
+
+Disaggregate mapping uses page mapping for the region allocated for
+metadata area of the file system and keeps no mapping information for the
+main area. The memory footprint of OrcFS is only 1 Mbyte which consumes
+about 256 times less than that of page mapping. Even if we add several
+other metadata used by OrcFS, such as segment bitmap and buffered
+segment number, the size of total metadata is only 4.73 Mbyte, which
+is 54 times less than that of page mapping. Note that the size of
+mapping table without any other metadata in LAST FTL is 4 Mbyte.
+
+\begin{comment}
+  Since the size of metadata in disaggregate mapping does not change
+  once the partition size is fixed, it makes possible to store the
+  information in small DRAM memory.
+\end{comment}
+
+
+\begin{figure}[t]
+\centering
+
+ \subfloat[Sequential Write]{
+ \includegraphics[angle=-90,width=1.55in]{./bench/seq_write}
+ \label{fig:benchtest_seqw}
+ }\hspace{-1.3em}
+ \subfloat[Random Write]{
+ \includegraphics[angle=-90,width=1.55in]{./bench/rand_write}
+ \label{fig:benchtest_randw}
+ }
+ \caption{Sequential / Random Write Performance, F2FS and Ext4 are on
+   Page mapping SSD (Workload is as follows. Sequential Write: 188
+   Gbyte File size, 512 Kbyte record size, 2.75 Tbyte Total write
+   volume / Random Write: 50 Gbyte File size, 4 Kbyte record size, 750
+   Gbyte Total write volume, Section size of F2FS: 256 Mbyte)}
+ \label{fig:benchtest}
+\end{figure}
+
+
+\subsection{Primitive IO}
+\label{subsec:io_performance}
+
+
+To examine the efficiency of the code and the physical stroage layou, we measure the performance of different systems with garbage collection and segment cleaning disabled.
+Fig. \ref{fig:benchtest} shows the performance result of sequential write and random write. 
+
+\begin{comment}
+
+We measure the performance of different systems {\color{red}where neither garbage
+collection nor segment cleaning occur.} This is to examine the efficiency
+of the code and the physical storage layout. Fig. \ref{fig:benchtest}
+shows the performance of sequential write and random write. 
+
+\end{comment}
+
+
+Ext4 and F2FS are mounted on page mapping SSD and OrcFS uses
+disaggregate mapping SSD with modified F2FS. Details of the environment are
+described in \cref{subsec:exp_setup}. To measure the
+sequential write performance, we format the file system and create a
+file with a size of 188 Gbyte. One iteration of an experiment issues 512
+Kbyte buffered sequential write until all LBAs are covered and
+repeat the iteration for fifteen times.
+Fig. \ref{fig:benchtest_seqw} shows the average performance. The
+performance of Ext4 and F2FS is 466 Mbyte/sec and 476 Mbyte/sec,
+respectively. The performance of OrcFS shows about 507
+Mbyte/sec. It is 6$\%$ higher than that of F2FS.
+
+The performance gap between Ext4 and OrcFS stands out even
+more in random write workload (Fig. \ref{fig:benchtest_randw}). 
+To measure the random performance of
+the device, we format the device and create a 50 Gbyte sized file in
+the partition. An iteration of the experiment touches all the LBAs
+with 4 Kbyte buffered random writes, and the graph shows the average of
+fifteen iterations. The result shows that OrcFS is about 12$\%$ faster
+than Ext4; IOPS of OrcFS is 110.3 KIOPS and Ext4 is 98.1 KIOPS. 
+
+\begin{comment}
+  \begin{figure}[t]
+    \begin{center}
+    \includegraphics[width=3.3in]{./bench/mobibench_randw_iops.eps}
+    \caption{Mobibench 4 Kbyte Random Write Test (170 Gbyte Cold data,
+      20 Gbyte Hot data, Section size of F2FS: 256 Mbyte)}
+    \label{fig:mobibench_randw}
+    \end{center}
+  \end{figure}
+
+  Fig \ref{fig:mobibench_randw} shows average IOPS of fifteen iterations of
+  random write I/O generated by Mobibench benchmark tool
+  \cite{jeong2013androstep}. After formatting the partition, we create
+  a 170 Gbyte sized file as a cold data, and create another 20 Gbyte
+  sized file as a hot data. An iteration of experiment writes 20 Gbyte
+  file with 4 Kbyte buffered random write. This workload also shows no
+  sign of garbage collection because free space available in the
+  file system partition is larger than the hot data we used in the
+  experiment. The result shows that IOPS of F2FS (80.5 KIOPS) and Ext4
+  (81.0 KIOPS) is not much different from each other. On the other hand,
+  OrcFS is slightly faster than the other systems, it shows about 8$\%$
+  higher random write IOPS (86.8 KIOPS).
+\end{comment}
+
+\begin{figure}[t]
+  \begin{center}
+  \includegraphics[width=3.2in]{./bench/filebench.eps}
+  \vspace{-1em}
+  \caption{Filebench Test Results}
+  \vspace{-1.5em}
+  \label{fig:filebench}
+  \end{center}
+\end{figure}
+
+\subsection{Macro Benchmark}
+\label{subsec:micro_bench}
+
+Fig. \ref{fig:filebench} shows the result of filebench \cite{filebench} using \emph{fileserver} and \emph{varmail} workload, and Tab. \ref{tab:filebench} describes the summary information of each workload. \emph{fileserver} workload generates 80,000 files with size of 128 KByte, then creates 50 threads to issue reads or buffered appends with the ratio of 30:70.
+\emph{varmail} creates eight thousand 16Kbyte files using 16 threads to create and delete the files with ratio of 50:50, and each operation is followed by \texttt{fsync()}.
+
+
+The performance is normalized with respect to the performance of Ext4. 
+In the case of fileserver workload, 
+EXT4 shows 225 Mbyte/sec where F2FS and OrcFS exhibit 350 Mbyte/sec and
+352 Mbyte/sec, respectively. OrcFS shows 1.6 times better performance
+than Ext4. The result is similar in varmail. The performance of OrcFS is
+29 Mbyte/sec and Ext4 is 20 Mbyte/sec which is 1.5 times higher.
+The performance difference comes from the size of the
+blocks passed with \texttt{discard} command \cite{lee2015f2fs}.
+Ext4 sends a lot of small sized discard commands but F2FS and OrcFS send
+at least segment sized discard commands which significantly reduces the
+overhead of processing discard commands in the device.  
+
+\subsection{Key-Value Store Performance}
+\label{subsec:ycsb_bench}
+
+\begin{figure}[t]
+  \begin{center}
+  \includegraphics[width=3.2in]{./bench/throughput.eps}
+  \vspace{-1em}
+  \caption{YCSB Cassandra DB Test Results (Throughput, 20 GByte Cassandra DB, 4 KByte Record Size, 50\% read and 50\% Updates; Workload-A)}
+  \label{fig:ycsb_throughput}
+  \end{center}
+\end{figure}
+
+\begin{figure}[t]
+  \begin{center}
+  \includegraphics[width=3.3in]{./bench/latency2.eps}
+  \caption{YCSB Cassandra DB Insert, Update Latency (Normalized to Ext4 Average Latency)}
+  \label{fig:ycsb_latency}
+  \end{center}
+\end{figure}
+
+YCSB (Yahoo! Cloud Serving Benchmark)\cite{cooper2010ycsb} provides a framework to measure the performance of key-value store. We used Cassandra DB \cite{cassandraDB} with YCSB to measure the performance of Ext4, F2FS, and OrcFS on server environemt described in Table \ref{tab:ssd_info}. There are two phases in testing the performance of Cassandra DB with YCSB. The first phase is `load' that inserts records to a empty DB, and the second phase is `run' where YCSB generates transactions to measure the performance of the key-value store. In load phase, 5,242,880 records with the size of 4 Kbyte is inserted to the DB, thus the size of the DB is 20 Gbyte. We used YCSB Workload-A to perform read and update operation with ratio of 50:50. 
+
+Fig. \ref{fig:ycsb_throughput} shows the throughput of Insert in load phase and overall throughput of read/update operation in run phase. The performance of insert in load phase shows 3,554 ops/sec and 3,537 ops/sec for OrcFS and Ext4, respectively, which is about 20$\%$ higher than that of F2FS (2,916 ops/sec). Cassandra DB uses LSM-tree (Log-structured Merge tree) \cite{o1996log} to manage the data in the DB \cite{cassandraDBlsmtree}. When Cassandra is used on top of F2FS, then three layers that is application, file system, and SSD firmware keeps a log layer and becomes prone to stacking the log problem; thus, the performance of F2FS is lower than the other two systems. On the other hand, Ext4 shows about 20$\%$ lower performance than OrcFS in run phase. The reason behind the poor performance of Ext4 is due to update operation in LSM-tree. To reduce the overhead of searching the record in LSM-tree for update operation, it updates a record using `delete followed by insert' \cite{o1996log}. As a result Ext4 has to issue \texttt{discard} command as much as the number of records updated. The test result of Ext4 in \cref{subsec:micro_bench} can be explained with the same reason.
+
+Fig. \ref{fig:ycsb_latency} illustrates the normalized latency of insert and update operation in each system. The performance of insert in OrcFS is about 18$\%$ lower than that of F2FS, and the performance of update is about 23$\%$ lower latency than Ext4. The max latency of insert operation in Ext4 is 568 msec, which is about three to four times long than that of F2FS and OrcFS, respectivley. Such long latency may cause performance issue in database services becuase it has to guarantee the performance consistency as well as predictability.
+
+
+\begin{comment}
+  \begin{table}[t]
+  \begin{center}
+    \begin{tabular}{|c|r|r|r|} \hline 
+           usec        & Ext4		& F2FS		&	OrcFS	\\ \hline\hline 
+  Insert Avg Latency   &  279.8		& 340.4		& 278.6	\\ \hline 
+  Insert Min Latency  	&  174 		& 183		& 182	\\ \hline 
+  Insert Max Latency 	&  568,319	& 138,495		& 171,391	\\ \hline\hline
+  Update Avg Latency   &  259		& 211.9		& 198.2	\\ \hline
+  Update Min Latency  	&  122 		& 120		& 114	\\ \hline 
+  Update Max Latency 	&  112,703	& 112,319		& 86,015	\\ \hline
+
+  \end{tabular}
+  \end{center}
+  \vspace{-0.7em}
+  \caption{YCSB Insert, Update Latency (usec, 20 GByte Cassandra DB, 4 KByte Record Size)}
+  \label{tab:ycsb}
+  \end{table}
+\end{comment}
+
+
+\begin{figure}[t]
+  \centering
+   \subfloat[w/o QPSC (Runtime: 860 sec)]{
+   \includegraphics[width=1.6in]{./qpsc/normal_total_latency.eps}
+   \label{fig:lat_wo_qpsc}
+   }
+   \subfloat[w/ QPSC (Runtime: 480 sec)]{
+   \includegraphics[width=1.6in]{./qpsc/qpsc_total_latency.eps}
+   \label{fig:lat_w_qpsc}
+   }\quad
+   \subfloat[CDF of Segment Cleaning Latency (Segment Cleaning Call Count - OrcFS: 635, OrcFS$_{QPSC}$: 2,095)]{
+   \includegraphics[width=3.2in]{./qpsc/usl_qpsc_cdf.eps}
+   \label{fig:lat_qpsc_cdf}
+   }
+   \caption{Segment Cleaning Latency according to Quasi-Preemptive Segment Cleaning (110 Gbyte Cold File, 80 Gbyte Hot File, 4 KByte Buffered Random Write to Hot File)\label{fig:lat_qpsc}}
+\end{figure}
+
+\subsection{Effect of Quasi-Preemptive Segment Cleaning}
+\label{subsec:qpsc_test}
+
+
+We observe that OrcFS with Quasi-Preemptive Segment Cleaning (QPSC) reduces the response time of host I/O requests. To test the effect of QPSC on response time use created a cold and a hot file with the size of 110 Gbyte and 80 Gbyte, respectively. We measured the 4Kbyte buffered random write to overwrite 70 Gbyte of the hot file while measuring the latency of segment cleaning. Fig. \ref{fig:lat_wo_qpsc} shows the latency of OrcFS without the preemption in segment cleaning, and Fig. \ref{fig:lat_wo_qpsc} shows the latency of QPSC enabled OrcFS (OrcFS$_{QPSC}$). Fig. \ref{fig:lat_qpsc_cdf} shows the CDF of segement cleaning latency in OrcFS and OrcFS$_{QPSC}$.
+
+Maximum segment cleaning latency shown in Fig. \ref{fig:lat_wo_qpsc} is 6.6 sec, which infers that the response time for a write request from the host can be as long as 6.6 sec. On the contrary, Fig. \ref{fig:lat_w_qpsc} shows that latency of OrcFS$_{QPSC}$ exhibits as long as 278 msec and handles host I/O requests with higher priorities. The average write latency of OrcFS is 929 msec and OrcFS$_{QPSC}$ is 111 msec that is reduction of 88$\%$. As can be observed from comparing Fig. \ref{fig:lat_wo_qpsc} and Fig. \ref{fig:lat_w_qpsc}, OrcFS$_{QPSC}$ shows lower variance in segment cleaning latency proving that OrcFS$_{QPSC}$ provides better predictability. 
+
+An other interesting point that can be observed in the result is that OrcFS$_{QPSC}$ shows 44$\%$ shorter execution time than OrcFS, that is reduction from 860 sec to 480 sec. It is because OrcFS$_{QPSC}$ processes host I/Os first, which increases the number of invalid blocks. When the time comes to select a victim section, it has higher chance of choosing a section with low utilziation which increases the efficiency of segment cleaning. The result clearly shows that QPSC not only significantly reduces the system blocking time incurred by segment cleaning but also increases the efficiency of segment cleaning. 
+
+
+\begin{comment}
+  \begin{table}[t]
+  \begin{center}
+  \begin{tabular}{|r|r|r|r|r|r|} \hline
+  	     	& Min	& Avg 		& 99.9\% 		& Max 		\\ \hline\hline
+  OrcFS	(msec)    		& 15.6 & 929.2 & 5,734.6 & 6,651.9 	\\ \hline
+  OrcFS$_{QPSC}$ (msec)	& 1.2 & 111.3	& 252.6 & 278.4	\\ \hline
+  \end{tabular}
+  \end{center}
+  \vspace{-0.7em}
+  \caption{OrcFS Segment Cleaning Latency according to Quasi-Preemptive Segment Cleaning (msec)}
+  \label{tab:lat_qpsc}
+  \end{table}
+\end{comment}
+
+\subsection{Effect of Eliminating the Compound Garbage Collection}
+\label{subsec:remove_gc_overhead}
+
+We measure the performance of OrcFS and compare it with F2FS. 
+The compound garbage collection is a problem only exists in stacked log 
+system. And, to give a fair trial between the log-structured
+file systems, we only compare the result of F2FS and OrcFS. The precondition
+of experiments is as follows. We format the device and create a
+partition using available 256 Gbyte of space; create 170 Gbyte
+file. A single iteration of experiment generates total 85 Gbyte volume of
+4 KByte random writes on the created file. The ranges of the writes are
+limited from 0 to 85 Gbyte LBAs of the file. We repeat the 
+iteration fifteen times and measure the WAF and the performance of
+each iteration. 
+WAF is a ratio of the number of page writes from the host to the storage and the actual number of page writes made on the storage. WAF increases due to storage garbage collection and wear-leveling operation. High WAF not only reduce the storage I/O performance but also decreases the life time of NAND Flash memory.
+We used \texttt{smartmontools}
+package\cite{smartmontools} to get the WAF of storage. 
+The result shown at Fig. \ref{fig:f2fs_vs_usl} is
+the average of fifteen iterations.
+
+
+
+
+\begin{figure}[t]
+  \centering
+  \subfloat[WAF]{
+    \includegraphics[width=2in]{./comp_gc/f2fs_vs_usl_waf}
+   \label{fig:f2fs_vs_usl_waf}
+   }
+   \subfloat[IOPS]{
+   \includegraphics[width=1.1in]{./comp_gc/f2fs_vs_usl_iops}
+   \label{fig:f2fs_vs_usl_iops}
+   }
+   \caption{WAF and IOPS of Each System
+     (85 Gbyte Cold File, 85 Gbyte Hot File, 4 Kbyte buffered random write to the Hot File, 170 Gbyte Total write volume, Section size of F2FS: 256 Mbyte)\label{fig:f2fs_vs_usl}}
+
+\end{figure}
+
+\begin{comment}
+\begin{figure*}[t]
+\label{fig:170_85_randw}
+\centering
+
+\subfloat[File System WAF]{
+ \includegraphics[width=3.3in]{./comp_gc/170_85_randw_fs}
+ \label{fig:170_85_randw_fs}
+ }
+\subfloat[Device WAF]{
+ \includegraphics[width=3.3in]{./comp_gc/170_85_randw_dev}
+ \label{fig:170_85_randw_dev}
+ }
+\subfloat[Total WAF]{
+ \includegraphics[width=3.3in]{./comp_gc/170_85_randw_total}
+ \label{fig:170_85_randw_total
+ }
+ \subfloat[IOPS]{
+ \includegraphics[width=3.3in]{./comp_gc/170_85_randw_iops}
+ \label{fig:170_85_randw_iops}
+ }
+ \caption{The Result of Compound Garbage Collection in Case Study 2
+   (Section size of F2FS: 256 Mbyte)\label{fig:170_85_randw}}
+\end{figure*}
+\end{comment}
+
+
+Fig. \ref{fig:f2fs_vs_usl_waf} shows the WAF observed on the file system
+and the device along with the total WAF. The result shows that using OrcFS
+increases file system WAF by 15\% compared to that of F2FS with page
+mapping SSD. On the other hand, the WAF of the device shows that OrcFS is 36\%
+better than existing F2FS. Overall, the total WAF of OrcFS is 26\% lower
+than that of F2FS. Fig. \ref{fig:f2fs_vs_usl_iops} shows IOPS of each
+configuration. As a result of keeping the overall WAF low, OrcFS achieved
+about 45\% better IOPS than F2FS. 
+
+Fig. \ref{fig:io_distribution} illustrates the write volume generated
+for data update, metadata, file system segment cleaning, and device garbage
+collection in writing 85 GByte of blocks. An iteration of random write
+with F2FS generates the total of 149 Gbyte of write requests to storage, but
+OrcFS generates only 113 Gbyte of write requests to storage, which is
+about 24\% lower. 
+
+
+The volume of Metadata writes in OrcFS is 613 Mbyte which is about 170 Mbyte
+higher than that of F2FS. Although user requested to write 85 Gbyte of
+data to the SSD, the total volume written to the storage is about 150 Gbyte,
+where about 11 Gbyte are generated by segment cleaning and about 53
+Gbyte is generated by garbage collection.  The total volume written to
+the storage in OrcFS is about 24$\%$ lower than  that of Ext4 because OrcFS
+not only removes the effect of compound garbage collection but also
+removes the random I/Os generated by threaded logging scheme.  
+
+
+
+
+
+
+\begin{figure}[t]
+\begin{center}
+\includegraphics[width=3.2in]{./comp_gc/io_distribution.eps}
+\caption{Total Write Volume Distribution (4 Kbyte buffered random write, Write volume generated by the application is 85 Gbyte, Section size of F2FS: 256 Mbyte)}
+\label{fig:io_distribution}
+\vspace{-1.5em}
+\end{center}
+\end{figure}
+
+
+\begin{comment}
+  \begin{figure}[t]
+  \begin{center}
+  \includegraphics[width=3.2in]{./comp_gc/cold_ratio_waf.eps}
+  \caption{WAF according to the Cold Data Ratio (The total size of cold data and hot data is 170 Gbyte, Section size of F2FS:    256 Mbyte)}
+  \label{fig:cold_ratio_waf}
+  \vspace{-1.5em}
+  \end{center}
+  \end{figure}
+\end{comment}
+
+\subsection{Cold block ratio and Segment Cleaning Overhead}
+\label{section:cbr}
+In most storage devices, the dominant fraction of the storage is filled
+with cold files which are barely updated or accessed \cite{park2011hot}. We
+examine the performance of different storage stacks varying the fraction
+of cold data over entire storage partition.
+
+Fig. \ref{fig:cold_ratio_iops} shows the result of 4 Kbyte buffered
+random writes to the hot file on three file systems while varying the size of cold data. 
+The relationship between hot file size ($F_{hot}$), cold file size ($F_{cold}$), 
+and the total volume ($TotalVolume$) in Gbytes used in the experiment is as follows: 
+$F_{cold} + F_{hot} = TotalVolume$ and $TotalVolume \times ( 1 - x ) = F_{hot}$.
+We set $TotalVolume = 170$ and $x$ equals to ratio of $TotalVolume$, 
+which we vary from 50$\%$ to 95$\%$. For example, when $TotalVolume = 170$ 
+and $x = 0.6$, the size of hot data is $170 \times 0.4 = 68$ Gbyte and 
+the cold data is 102 Gbyte. We repeat the experiment fifteen times, and the total
+volume written in an iteration is 170 Gbyte. The result shows the average of fifteen iterations. 
+
+In all cases, OrcFS outperforms the result of F2FS; OrcFS is about 21$\%$
+faster than F2FS when the cold ratio is 50$\%$ and the difference
+closes into 4$\%$ when the cold ratio becomes 95$\%$. It shows that the
+effect of compound garbage collection becomes less significant as the
+hot ratio becomes smaller. The performance of Ext4 is stable around 83.5 $\sim$ 86.5
+KIOPS. The performance of OrcFS becomes higher than Ext4 when the cold
+ratio is less than 55$\%$ and the gap widens as the ratio
+decreases. When the cold ratio set to 95$\%$, OrcFS shows about 41$\%$
+higher IOPS than that of Ext4. Considering the report that the size
+of the hot data in the system is about 5 to 25$\%$ of the workload
+\cite{park2011hot}, it is reasonable to say that the
+performance of OrcFS is superior to other systems, especially when most
+of the partition is filled with cold data and only small amount of
+data is frequently accessed. 
+
+\begin{figure}[t]
+\begin{center}
+\includegraphics[width=3.2in]{./comp_gc/cold_ratio_iops.eps}
+\caption{Random Write Performance according to the Cold Data Ratio (The total size of cold data and hot data is 170 Gbyte, Section size of F2FS: 256 Mbyte)}
+\label{fig:cold_ratio_iops}
+\end{center}
+\end{figure}
+
+\begin{comment}
+  Fig. \ref{fig:cold_ratio_waf} shows the WAF of systems observed in
+  measuring the performance for Fig. \ref{fig:cold_ratio_iops}. The WAF of a
+  system is measured by multiplying the WAF of file system to the WAF of
+  the storage. Overall, the result shows that 
+  the system WAF with F2FS is higher than the system WAF with OrcFS. As it is described in
+  \cref{subsec:remove_gc_overhead}, F2FS has higher WAF than other systems
+  because of the write amplification caused by compound garbage collection.
+  It has to be noted that although the system WAF with Ext4 is the lowest, but IOPS on
+  OrcFS is higher than that of Ext4. It is because all random writes in OrcFS are
+  sequentially logged to the storage.
+
+  The proposed OrcFS with disaggregate mapping allows not only reducing the
+  device level garbage collection but also lowering the total WAF of the
+  system.
+\end{comment}
+
+\begin{comment}
+  \begin{figure}[t]
+  \begin{center}
+  \includegraphics[width=1.5in, angle=-90]{./comp_gc/segs_per_sec.eps}
+  \caption{4 Kbyte Buffered Random Write Performance according to the Section size}
+  \label{fig:segs_per_sec}
+  \end{center}
+  \end{figure}
+\end{comment}
+
+\begin{comment}
+  \subsection{Effect of Segment Cleaning Unit}
+
+  Increase in WAF for compound garbage collection means one thing:
+  misalignment of garbage collection unit between storage and
+  file system. To illustrate the effect of misalignment,
+
+  Fig. \ref{fig:segs_per_sec} shows the performance of F2FS and OrcFS while
+  varying the size of a section, which is the unit of segment cleaning in
+  F2FS. For comparison, we used same condition and workload used in
+  Fig. \ref{fig:f2fs_vs_usl}. The size of the section is increased from 2
+  Mbyte to 256 Mbyte in multiples of two. The X-axis of the graph shows the
+  size of a section and used in the file system. Y1-axis and Y2-axis show IOPS and
+  WAF of experiments, respectively. The result shows that as section
+  size increases the performance also increases, and the
+  performance is the highest when the size of the section matches 
+  the garbage collection unit of the storage device. 
+  Compared to the IOPS and WAF of F2FS with section size of 2 Mbyte,
+  F2FS with section size 256 Mbyte shows 24$\%$ higher IOPS and 20$\%$ lower WAF.
+
+  It is important to match the garbage collection unit between a file system
+  and a storage device to reduce the garbage collection overhead in stacked
+  log system. Even though the section size of F2FS is matched with the
+  garbage collection unit of SSD, the effect of compound garbage
+  collection is not completely removed. As a result, the performance of
+  OrcFS is about 24$\%$ higher than F2FS with 256 Mbyte section size.
+\end{comment}
+
+\subsection{Block Patching Overhead}
+\label{subsec:patching_overhead_test}
+
+Block Patching comes at the cost of additional storage space
+consumption. To verify the overhead of introducing dummy page with Block Patching, we tested three different workloads.
+
+The number of dummy pages due to Block Patching while performing buffered 4 Kbyte random write workload described in \cref{subsec:remove_gc_overhead} is 3$\%$ because the file system does its best to increase the performance by coalescing the requests. The case is also same in YCSB benchmark shown in \cref{subsec:ycsb_bench}; the size of total dummy page write request is 196 Mbyte, that is only 0.3$\%$ of the total write request. On the contrary, frequent calls of flush command, such as \texttt{fsync()}, have adverse effect on the performance because dummy page is a must to match the size of NAND Flash page. Filebench and varmail workload described in \cref{subsec:micro_bench} calls \texttt{fsync()} on every write request, and the result shows that the sum of dummy page written on storage is about 27$\%$ or 514 Mbyte, where the total sum of write is 1.8 Gbyte. However, what is interesting in the result is that OrcFS still shows about 1.5$\%$ better performance than F2FS that uses read-modify-write and page mapping. The result does indicate that Block Patching has less overhead than read-modify-write. 
+
+
+\begin{comment}
+  \subsection{Multi-threaded Write}
+
+  Fig. \ref{fig:50_50_seqw_waf} shows the Total WAF---file system WAF
+  $\times$ device WAF---of F2FS and OrcFS while processing multi-threaded
+  sequential update workload, which is described in Section
+  \ref{subsec:case_study_3}. After formatting the partition, we create
+  fifty 3.8 Gbyte files sequentially. Then, create fifty threads to
+  write 0 to 1 Gbyte range of each file with 256 Kbyte buffered
+  sequential update operation, which is one iteration of the experiment.
+
+  Fig. \ref{fig:50_50_seqw_waf} shows the WAF of seven runs. Except the
+  first iteration, OrcFS shows about 15$\%$ lower WAF compared to the
+  system with base F2FS. It shows that WAF of F2FS is in between 1.5 to
+  2. As we have discussed in \cref{subsec:case_study_3}, although
+  each thread issues sequential write requests, the group behavior of
+  multi-threaded I/O requests may increase the overal WAF of the
+  system. In the case of OrcFS, file system triggers number of segment
+  cleaning jobs, but since there is no device level garbage collection,
+  OrcFS shows WAF of 1.3 to 1.4, overall OrcFS shows about 26$\%$ lower WAF
+  than that of F2FS. 
+
+  In this section, we observed that stacking log-structured system
+  suffers from compound garbage collection, and it also showed that
+  without proper coordination between the two systems, stacking log
+  system is bounded to have high write amplification. OrcFS
+  is combination of efforts to reduce the size of mapping table
+  using disaggregate mapping and resolve compound garbage collection by
+  delegating SSD level garbage collection to file system. And experiments
+  in this section show that it successfully addresses the problem.
+\end{comment}
+
+\begin{comment}
+  match the garbage collection unit between
+  file system and storage device to resolve compound garbage
+  collection. And experiments in this section shows that it successfully
+  address the problem.
+\end{comment}
+
+\begin{comment}
+  \begin{figure}[t]
+  \begin{center}
+  \includegraphics[width=3.5in]{./comp_gc/50_50_seqw_total}
+  \caption{The Result of Compound Garbage Collection Scenario 3 (Section
+    size of F2FS: 256 Mbyte)}
+  \label{fig:50_50_seqw_waf}
+  \vspace{-1.5em}
+  \end{center}
+  \end{figure}
+\end{comment}
+
+\section{Related Works}
+\label{sec:related_works}
+
+Earlier attempts to manage the Flash memory, researchers have come up 
+with Flash memory based file systems to make host file systems in charge 
+of managing the raw Flash memory.
+Flash memory specific file systems such as LogFS \cite{engel2005logfs}, 
+UbiFS \cite{hunter2008brief}, YAFFS \cite{manning2010yaffs} and JFFS2 
+\cite{zhang2006implementation} do not have FTL; thus, they do not suffer 
+from the duplicated overhead of metadata management and compoun garbage collection 
+issues.
+However, when process technology got advanced, capacity of the device 
+increased, and parallelism via introduction of multi channel/way increased, 
+the concept of managing the raw device with host file system was not 
+feasible any more. The host file system could not handle I/O parallelism, 
+bad block management, and wear leveling issues. A special software layer 
+called Flash Translation Layer (FTL) was the solution for I/O parallelism, 
+mapping table management, and wear leveling issues. Device technology 
+advanced towards hiding all the complications under the FTL and providing 
+simple interface for read and write to the host system. 
+
+Recent works tried to remove the level of indirection in SSD. There are
+few different ways to remove the level of indirection  in the I/O stack.  
+One of the ways is to introduce new I/O interface to the system. Zhang 
+et al. \cite{zhang2012indirection} introduced nameless writes, a new
+device interface to remove the mapping layer in FTL and opened its
+physical addresses to the  file system. Saxena et
+al. \cite{saxena2013getting} implemented 
+nameless writes using OpenSSD Jasmin board. They found that directly accessing 
+the physical address needs caution because programming to the Flash memory 
+always have to follow its erase before update property. The characteristics 
+become an issue especially when the write unit of the file system is different 
+from that of SSD. NVMKV \cite{nvmkv}, on the other hand, replaces the operation for 
+key-value operations with FTL commands, i.e., atomic multiple-block write, 
+p-trim, exists, and iterate. Since the operations are substituted with FTL 
+commands, the host is exempted from managing in-memory metadata for key-value 
+store. However, NVMKV \cite{nvmkv} still require a page granularity mapping table in device.
+Baidu introduced SDF (Software-defined Flash) \cite{sdf} exposes
+each Flash channels to the host as seperate block devices. 
+Each channel engine in SDF implements mapping table management, bad block
+management and wear-leveling. The host performs garbage collection of the
+device. But both the NVMKV \cite{nvmkv} and \cite{sdf} are developed for
+a key-value store system and do not suit for general applications.
+
+There are solutions to make use of virtualized block device 
+\cite{josephson2010dfs, lee2012ressd, kim2012advil, anvil, sdf} 
+which strives to minimize the overhead of stacked indirection layers and
+garbage collection. They use a single mapping layer on the device or host to map files. 
+Direct File System, DFS \cite{josephson2010dfs} uses a virtualized block
+device layer to improve the performance. DFS replaces the role of block
+management and FTL through a layer called virtualized flash storage
+layer (VFSL). The design of DFS is greatly simplified because VFSL
+manages block allocation and inode management that used to be
+manipulated in a file system. ReSSD \cite{lee2012ressd} and ADVIL \cite{kim2012advil}, which 
+are virtual block device on top of an SSD, try to improve the small random 
+write performance by transforming the requests to sequential writes. 
+ANViL \cite{anvil} lets the host modify device logical-to-physical mapping information 
+through a new I/O interfaces. Host exploits the given interfaces to remove 
+redundant data copy overhead and provide useful features such as single 
+journaling and file snapshot to the system.
+
+In order to release the burden of the device memory requirement, FSDV \cite{zhangremoving} provides 
+a way for the host to access the physical address mapping information. FSDV (File System De-Virtualizer) 
+\cite{zhangremoving} is a user-level tool that reduces the memory overhead of managing mapping 
+information on both file system and storage device. When FSDV is invoked, it 
+first checks mapping information and makes file system to point the physical 
+address and removes logical to physical address mapping information on SSD 
+mapping table. One of the the downside of using FSDV is that the memory on the 
+device cannot be smaller than the maximum size of the mapping table. 
+
+Lee et al. \cite{lee2016application} introduced AMF (Application Managed-Flash).
+Exploiting the fact that log-structured applications always append the data, 
+AMF reduces the size of metadata for Flash based storages. They made a prototype based on F2FS and uses log structured writes on metadata where the original F2FS in-place updates the metadata area. A benefit of using log structured writes on both main and metadata area is that the entire storage area can be mapped with block mapping; however, data structure such as inode-maps gets constantly updated and writing them in log structured style can be inefficient such as ``wandering tree''\cite{rosenblum1992design} problem. 
+
+Zhang et al. \cite{zhang2016parafs} proposed ParaFS as a solution to 
+the compound garbage collection problem as well as hotness classification. 
+ParaFS acquires hardware information upon file system format, and finds 
+its channel structure and the unit of garbage collection. Using `2-D Data Allocation',
+ParaFS classifies the hotness of incoming data using channel parallelism.
+`coordinated garbage collection' and `parallelism-aware scheduling'
+scheme enable ParaFS to solve the compound garbage collection problem
+and load balancing.
+
+\begin{comment}
+Lots of the efforts were focused on reducing the size of the mapping table 
+or FTL. Many have tried to replace de facto FTL, that is page mapping FTL 
+\cite{ban1995flash}, with various hybrid FTLs \cite{kang2006superblock,
+fast07, last08}.  
+
+Recent works tried to remove the level of indirection in SSD. There are
+few different ways to remove the level of indirection  in the I/O stack.  
+One of the ways is to introduce new I/O interface to the system. Zhang 
+et al. \cite{zhang2012indirection} introduced nameless writes, a new
+device interface to remove the mapping layer in FTL and opened its
+physical addresses to the  file system. Saxena et
+al. \cite{saxena2013getting} implemented 
+nameless writes using OpenSSD Jasmin board. They found that directly accessing 
+the physical address needs caution because programming to the Flash memory 
+always have to follow its erase before update property. The characteristics 
+become an issue especially when the write unit of the file system is different 
+from that of SSD. NVMKV \cite{nvmkv}, on the other hand, replaces the operation for 
+key-value operations with FTL commands, i.e., atomic multiple-block write, 
+p-trim, exists, and iterate. Since the operations are substituted with FTL 
+commands, the host is exempted from managing in-memory metadata for key-value 
+store. NVMKV successfully removes the overhead of duplicate management of 
+metadata and also reduces write amplification. Aforementioned works
+successfully  reduce the level of indirection by introducing specific
+interfaces or directly  using the FTL commands; however, they are short
+in solving the problem of garbage  collection entirely.
+
+
+
+Earlier attempts to mitigate the mapping table management overhead in SSDs, researchers have come up with Flash memory based file systems to make host file systems in charge of managing the raw Flash memory \cite{engel2005logfs}\cite{hunter2008brief}\cite{zhang2006implementation}. However, when process technology got advanced, capacity of the device increased, and parallelism via introduction of multi channel/way increased, the concept of managing the raw device with host file system was not feasible any more. The host file system could not handle I/O parallelism, bad block management, and wear leveling issues. A special software layer called Flash Translation Layer (FTL) was the solution for I/O parallelism, mapping table management, and wear leveling issues. Device technology advanced towards hiding all the complications under the FTL and providing simple interface for read and write to the host system. 
+
+Flash memory specific file systems such as LogFS \cite{engel2005logfs}, UbiFS \cite{hunter2008brief}, and JFFS2 \cite{zhang2006implementation} do not have FTL; thus, they do not suffer from the overhead of metadata managemet and compoun garbage collection issues. However, the fact that they are dedicated service for NAND, NOR, OneNAND Flash devices and exploits direct interface through MTD (Memory Technology Devices), they are not capable of handling multi channel/way devices. Moreover, creating multiple MTD partitions on a Flash memory limits the boundary of wear leveling to the partition. Because of these limitations, LogFS \cite{engel2005logfs}, UbiFS \cite{hunter2008brief}, and JFFS2 \cite{zhang2006implementation} is infeasible in multi channel/way enabled high capacity storage, and general systems.
+
+
+
+
+The Second category of the solution makes use of virtualized block device 
+\cite{josephson2010dfs, lee2012ressd, kim2012advil, anvil, sdf, tuch2012block}
+and Object-based SSDs \cite{lee2013ossd, lu2013extending}, 
+which strives to minimize the overhead of stacked indirection layers and
+garbage  
+collection. They use a single mapping layer on the device or host to map files 
+or objects to the pages containing their data. 
+
+Direct File System, DFS \cite{josephson2010dfs} uses a virtualized block
+device layer to improve the performance. DFS replaces the role of block
+management and FTL through a layer called virtualized flash storage
+layer (VFSL). The design of DFS is greatly simplified because VFSL
+manages block allocation and inode management that used  to be
+manipulated in a file system. Logging Block Store \cite{tuch2012block} resolve a  
+mismatch between the virtual memories I/O mixture and properties of the block 
+device in mobile devices. ReSSD \cite{lee2012ressd} and ADVIL \cite{kim2012advil}, which 
+are virtual block device on top of an SSD, try to improve the small random 
+write performance by transforming the requests to sequential writes. Both 
+schemes \cite{lee2012ressd, kim2012advil} makes use of the reserved area to stage the incoming random 
+writes. Their approaches are more or less similar to log-structured system 
+that suffers from the overhead of garbage collection. 
+
+In order to reduce the level of indirection ANViL \cite{anvil} and FSDV \cite{zhangremoving} provides 
+a way for the host to access the physical address mapping information. ANViL 
+\cite{anvil} lets the host modify device logical-to-physical mapping information 
+through a new I/O interfaces. Host exploits the given interfaces to remove 
+redundant data copy overhead and provide useful features such as single 
+journaling and file snapshot to the system. FSDV (File System De-Virtualizer) 
+\cite{zhangremoving} is a user-level tool that reduces the memory overhead of managing mapping 
+information on both file system and storage device. When FSDV is invoked, it 
+first checks mapping information and makes file system to point the physical 
+address and removes logical to physical address mapping information on SSD 
+mapping table. One of the the downside of using FSDV is that the memory on the 
+device cannot be smaller than the maximum size of the mapping table. 
+
+Object-based SSDs \cite{lee2013ossd, lu2013extending} tries to overcome the limitations 
+of the traditional block-level interface by virtualizing the physical storage 
+into a pool of objects. OSSD \cite{lee2013ossd} implemented object-based SSD to 
+simplify the host file system, utilize block-level liveness information to 
+optimize on-disk layout, manage metadata, hot/cold data separation. OFSS 
+\cite{lu2013extending} uses an object-based FTL with a set of object
+interfaces to compact and co-locate the small updates with
+metadata. OFSS exploits backpointer to delay the persistence of the
+object indexing. 
+
+
+Baidu introduced SDF (Software-defined Flash) to let the user entirely use the raw 
+capacity of Flash memories and its bandwidth \cite{sdf}. SDF exposes
+each Flash channels to the host as seperate block devices. 
+ assigning the block devices to applications, SDF can provide channel
+parallelism. Each channel 
+engine in SDF implements mapping table management, bad block
+management and wear-leveling. The host performs garbage collection of the
+device. Thus, Flash memories do not need to hold overprovisioning space.
+
+A work that have same point of view with this paper is the work done by Yang 
+et al. \cite{yang2014don}. They showed that it is better to keep the
+size of upper segment larger or equal to the size of lower segment and
+perform upper layer garbage  collection before lower layer garbage
+collection to yield better performance.  
+
+Lee et al. \cite{lee2016application} introduced AMF (Application Managed-Flash). Exploiting the fact that log-structured applications always append the data, AMF reduces the size of metadata for Flash based storages. They made a prototype based on F2FS and uses log structured writes on metadata where the original F2FS in-place updates the metadata area. A benefit of using log structured writes on both main and metadata area is that the entire storage area can be mapped with block mapping; however, data structure such as inode-maps gets constantly updated and writing them in log structured style can be inefficient. AMF overcomes such limitation through the use of TIMB (Table for Inode-map blocks) in main memory. OrcFS is also based on F2FS, but it uses `disaggregate mapping' where the metadata area is managed with page mapping and the main area is managed by file system. In the case of 1 Tbyte SSD that has 512 KB NAND Flash block with 4 channel and 1 way structure, AMF requires about 8 Mbyte to store block mapping table for the device, whereas OrcFS requires only 4.4 Mbyte of space to store mapping tables for main and metatdata area (2.2 Mbyte for the metadata area, 2 Mbyte for main area that is managed in the units of superblock.) The unit of wear leveling on AMF is NAND blocks and it uses static wear leveling, but OrcFS uses superblock as the unit of wear leveling.
+
+Zhang et al. \cite{zhang2016parafs} proposed ParaFS as a solution to the compound garbage collection problem as well as hotness classification. ParaFS acquires hardware information upon file system format, and finds its channel structre and the unit of garbage collection. A channel in ParaFS is abstracted as `Region', and pages are spread across the channels. It uses `2-D Data Allocation' that classifies the hotness of incoming data and allocates it to the same hotness group within the channel. ParaFS issues TRIM commnad to storage with information gathered during file system level garbage collection. It is called `coordinated garbage collection'. ParaFS implements `parallelism-aware scheduling' that performs load balancing to limit the number of erase operations and schedule the I/Os for each Region. As a result, write-intensive workload on ParaFS showed about 1.6 to 3.1 times better than that of F2FS. 
+
+
+
+YAFFS (Yet Another Flash File System) \cite{manning2010yaffs} is a
+file system for a Flash memory package, and the file system manages
+Logical-to-Physical mapping and garbage collection as well as
+wear-leveling of the device. Although YAFFS is a log-structured
+file system, it uses the NAND block as the unit of garbage collection
+instead of the segment. Unlike OrcFS and F2FS, YAFFS can reclaim an only
+limited number of NAND blocks at each round of garbage collection
+process. The mapping table in YAFFS is managed in Physical Address
+Translation Tree, and as the file gets larger, the search overhead
+also increases. Moreover, YAFFS is meant for NAND device and is not
+for SSDs.
+\end{comment}
+
+\section{Conclusion}
+\label{sec:conclusion}
+
+In this paper, we proposed OrcFS to solve two
+problems: size of the mapping table of an SSD and compound garbage collection
+of stacked log-structured systems. The mapping table in OrcFS is managed
+with disaggregate mapping which maintains two areas for different
+purposes. Metadata area which is managed by page mapping is used for
+metadata area of the file system, and main area for user data is stored in
+no mapping zone of the storage. Instead of keeping a mapping table for
+main area, disaggregate mapping directly maps LBAs of the file system to
+PBAs of the storage device. The use of disaggregate mapping reduced the
+overall metadata size of an SSD to 1/54 compared to the de facto page
+mapping scheme. Moreover, the static binding entirely eliminates the
+root cause of compound garbage collection since the segment cleaning
+of the log-structured file system directly consolidates the valid pages
+in the Flash storage. WAF of OrcFS is reduced by 26$\%$ and IOPS
+increased about 45$\%$ against F2FS with an SSD. We believe that OrcFS
+not only minimizes the DRAM requirement for large scale SSDs but also
+solves compound garbage collection in stacked log-structured system,
+and it successfully increases the performance and life time of the
+storage.
+
+%\bibliographystyle{IEEEtran}
+%\bibliographystyle{acm}
+%\bibliographystyle{unsrt}
+\bibliographystyle{plain}
+\bibliography{ref}
+
+%\pagebreak
+%\tableofcontents
+
+
+
+\end{document}

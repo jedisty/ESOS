@@ -1,0 +1,30 @@
+reset
+
+in1 = "dram_size_2.data"
+
+set terminal postscript eps enhanced monochrome "Helvetica" 40 size 7, 4
+
+set key inside top horizontal center samplen 1.5 height -2.5
+set grid y
+
+set xlabel "Year" font "Helvetica, 44"
+set ylabel "DRAM Size (Mbyte)" font "Helvetica, 44"
+
+set xrange[-0.5:2.5]
+set yrange[0:30]
+
+set xtic("2011"0, "2012"1, "2013\~"2)
+set ytic(0, 256, 512, 768, 1024)
+
+set style data histogram
+set style histogram rowstacked
+set style fill pattern 1.00 border -1
+
+set bars 1
+set grid ytics
+set boxwidth 0.7 absolute
+
+set output "dram_size.eps"
+plot in1 u 2 t '256 MB',\
+	in1 u 3 t '512 MB', \
+	in1 u 4 t '1024 MB'

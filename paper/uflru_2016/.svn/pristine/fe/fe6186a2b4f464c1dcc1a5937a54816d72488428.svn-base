@@ -1,0 +1,54 @@
+@article{hwang2015heapo,
+  title={Heapo: Heap-based persistent object store},
+  author={Hwang, Taeho and Jung, Jaemin and Won, Youjip},
+  journal={In Proc. of ACM Transactions on Storage (TOS)},
+  volume={11},
+  number={1},
+  pages={3},
+  year={2015},
+}
+
+@article{volos2011mnemosyne,
+  title={Mnemosyne: Lightweight persistent memory},
+  author={Volos, Haris and Tack, Andres Jaan and Swift, Michael M},
+  journal={ACM SIGPLAN Notices},
+  volume={46},
+  number={3},
+  pages={91--104},
+  year={2011},
+  publisher={ACM}
+}
+
+@inproceedings{park2006cflru,
+  title={CFLRU: a replacement algorithm for flash memory},
+  author={Park, Seon-yeong and Jung, Dawoon and Kang, Jeong-uk and Kim, Jin-soo and Lee, Joonwon},
+  booktitle={Proceedings of the 2006 international conference on Compilers, architecture and synthesis for embedded systems},
+  pages={234--241},
+  year={2006},
+  organization={ACM}
+}
+
+@inproceedings{wang2002conquest,
+  title={Conquest: Better Performance Through a Disk/Persistent-RAM Hybrid File System.},
+  author={Wang, An-I and Reiher, Peter L and Popek, Gerald J and Kuenning, Geoffrey H},
+  booktitle={USENIX Annual Technical Conference, General Track},
+  pages={15--28},
+  year={2002}
+}
+
+@article{huang2014tridentfs,
+  title={TridentFS: a hybrid file system for non-volatile RAM, flash memory and magnetic disk},
+  author={Huang, Ting-Chang and Chang, Da-Wei},
+  journal={Software: Practice and Experience},
+  year={2014},
+  publisher={Wiley Online Library}
+}
+
+@inproceedings{xu2015overcoming,
+  title={Overcoming the challenges of crossbar resistive memory architectures},
+  author={Xu, Cong and Niu, Dimin and Muralimanohar, Naveen and Balasubramonian, Rajeev and Zhang, Tao and Yu, Shimeng and Xie, Yuan},
+  booktitle={High Performance Computer Architecture (HPCA), 2015 IEEE 21st International Symposium on},
+  pages={476--488},
+  year={2015},
+  organization={IEEE}
+}

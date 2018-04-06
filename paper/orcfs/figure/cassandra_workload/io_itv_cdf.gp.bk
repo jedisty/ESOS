@@ -1,0 +1,34 @@
+reset
+
+in1 = "time_itv_t.txt"
+#in2 = "time_itv_r.txt"
+#in3 = "time_itv_w.txt"
+
+set terminal postscript eps enhanced color "Helvetica,42"  size 9, 4
+set output "time_itv_cdf_t.eps"
+
+#set key outside opaque left top horizontal enhanced samplen 2 spacing 1
+set key right bottom vertical enhanced samplen 2
+#set xtics border in scale 0,0 nomirror 
+
+set yrange [0 : 1.1]
+#set xrange [-0.05 : 1.05]
+
+set xlabel "IO Issue Time Interval"
+set ylabel "Cumulative Probability"
+
+#set xtics autofreq 0.2
+set xtics ("1 nsec"1, "100 nsec"100, "10 usec"10000, "1 msec"1000000, "100 msec"100000000, "10 sec"10000000000)
+set ytics autofreq 0.2
+unset key 
+
+set logscale x
+
+num1=system("wc -l time_itv_t.txt | awk '{print $1}'")
+#num2=system("wc -l time_itv_r.txt | awk '{print $1}'")
+#num3=system("wc -l time_itv_w.txt | awk '{print $1}'")
+
+
+plot in1 using 1:(1./num1) smooth cumulative t 'IO request' lt 1 lw 5
+#	in2 using 1:(1./num2) smooth cumulative t 'read request' lt 2 lw 5,\
+#	in3 using 1:(1./num3) smooth cumulative t 'write request' lt 3 lw 5

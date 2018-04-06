@@ -1,0 +1,8 @@
+all:	da_f2fs.tex ref.bib 
+	pdflatex --shell-escape da_f2fs.tex
+	bibtex da_f2fs.aux
+	pdflatex --shell-escape da_f2fs.tex
+	pdflatex --shell-escape da_f2fs.tex
+
+clean:
+	rm *.bbl *.log *.aux *.blg *.out
