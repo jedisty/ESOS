@@ -1,2 +1,0 @@
-n_blocks	sec_no	n_free_secs	sec_type	n_blks_node	gc_sec_latency	gc_total_latency	gc_type
-35022	888	159	1	0	5267732	5267732	0
